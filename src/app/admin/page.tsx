@@ -57,10 +57,11 @@ export default function AdminDashboard() {
         const getPrice = (productId: number) => {
           const p = products.find(prod => prod.id === productId);
           if (!p) return 0;
-          return typeof p.price === 'number' ? p.price : parseInt(p.price.replace(/\D/g, '')) || 0;
+          return typeof p.price === 'number' ? p.price : parseInt(String(p.price).replace(/\D/g, '')) || 0;
         };
 
-        shifts?.forEach(shift => {
+        // SUDAH DITAMBAHKAN : any PADA SHIFT
+        shifts?.forEach((shift: any) => {
           const outletName = shift.outlet_id || "Unknown Outlet";
           let shiftCup = 0;
           let shiftOmset = 0;
@@ -70,7 +71,8 @@ export default function AdminDashboard() {
           }
 
           if (shift.inventory_data && Array.isArray(shift.inventory_data)) {
-            shift.inventory_data.forEach(item => {
+            // SUDAH DITAMBAHKAN : any PADA ITEM
+            shift.inventory_data.forEach((item: any) => {
               const terjual = item.terjual || 0;
               shiftCup += terjual;
               if (shift.status === 'OPEN') {
