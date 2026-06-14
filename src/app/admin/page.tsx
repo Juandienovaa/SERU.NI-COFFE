@@ -26,24 +26,33 @@ export default function AdminDashboard() {
         // 1. Cek Autentikasi (Hanya admin@seruni.com)
         const { data: { session } } = await supabase.auth.getSession();
         
-        // --- UNTUK DEMO & TESTING TANPA LOGIN ---
-        // Jika Anda ingin menguji halaman ini tanpa perlu login, comment bagian pengecekan if() di bawah ini:
         if (!session || session.user.email !== "admin@seruni.com") {
           router.push("/login");
           return;
         }
 
-        // 2. Fetch Data Laporan Real-Time dari Supabase
-        const startOfDay = new Date();
-        startOfDay.setHours(0, 0, 0, 0);
-        const endOfDay = new Date();
-        endOfDay.setHours(23, 59, 59, 999);
+        // 2. Pengaturan Waktu Reset Otomatis Setiap Jam 00:00 WIB
+        const now = new Date();
+        const formatter = new Intl.DateTimeFormat("en-US", {
+          timeZone: "Asia/Jakarta",
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+        });
+        const parts = formatter.formatToParts(now);
+        const year = parseInt(parts.find(p => p.type === "year")!.value);
+        const month = parseInt(parts.find(p => p.type === "month")!.value) - 1;
+        const day = parseInt(parts.find(p => p.type === "day")!.value);
+
+        // Kunci batas awal dan akhir hari berdasarkan Zona Waktu Jakarta (WIB)
+        const startWIB = new Date(Date.UTC(year, month, day, 0, 0, 0, 0) - 7 * 60 * 60 * 1000);
+        const endWIB = new Date(Date.UTC(year, month, day, 23, 59, 59, 999) - 7 * 60 * 60 * 1000);
 
         const { data: shifts, error } = await supabase
           .from('shifts')
           .select('*')
-          .gte('created_at', startOfDay.toISOString())
-          .lte('created_at', endOfDay.toISOString());
+          .gte('created_at', startWIB.toISOString())
+          .lte('created_at', endWIB.toISOString());
 
         if (error) throw error;
 
@@ -53,14 +62,13 @@ export default function AdminDashboard() {
         const liveOutlets: any[] = [];
         const performaMap: Record<string, number> = {};
 
-        // Helper to get numeric price
-        const getPrice = (productId: number) => {
-          const p = products.find(prod => prod.id === productId);
+        // FIX: Konversi ID produk ke String untuk menghindari bentrok tipe data (Number vs String)
+        const getPrice = (productId: any) => {
+          const p = products.find(prod => String(prod.id) === String(productId));
           if (!p) return 0;
           return typeof p.price === 'number' ? p.price : parseInt(String(p.price).replace(/\D/g, '')) || 0;
         };
 
-        // SUDAH DITAMBAHKAN : any PADA SHIFT
         shifts?.forEach((shift: any) => {
           const outletName = shift.outlet_id || "Unknown Outlet";
           let shiftCup = 0;
@@ -70,22 +78,25 @@ export default function AdminDashboard() {
             gerobakAktifCount++;
           }
 
+          // Hitung item terjual untuk semua status shift (OPEN maupun CLOSED)
           if (shift.inventory_data && Array.isArray(shift.inventory_data)) {
-            // SUDAH DITAMBAHKAN : any PADA ITEM
             shift.inventory_data.forEach((item: any) => {
               const terjual = item.terjual || 0;
               shiftCup += terjual;
-              if (shift.status === 'OPEN') {
-                const price = getPrice(item.product_id);
-                shiftOmset += terjual * price;
-              }
+              
+              const price = getPrice(item.product_id);
+              shiftOmset += terjual * price;
             });
           }
           
           totalCupTerjual += shiftCup;
 
+          // Jika shift CLOSED, gunakan nilai total_sales DB sebagai prioritas utama jika bernilai valid (>0)
           if (shift.status === 'CLOSED') {
-            shiftOmset = Number(shift.total_sales || 0);
+            const dbTotalSales = Number(shift.total_sales || 0);
+            if (dbTotalSales > 0) {
+              shiftOmset = dbTotalSales;
+            }
           }
           
           totalOmsetHariIni += shiftOmset;
@@ -154,45 +165,12 @@ export default function AdminDashboard() {
 
   const { kpi, charts, liveOutlets, insights } = data;
 
-  // Format currency
   const formatRupiah = (num: number) => {
     return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(num);
   };
 
-  // Utility potong nama panjang
-  const truncateName = (name: string, maxLen = 15) => {
-    if (!name) return "";
-    if (name.length <= maxLen) return name;
-    return name.substring(0, maxLen) + "...";
-  };
-
-  // Custom Tooltip untuk Recharts
-  const CustomTooltip = ({ active, payload, label }: any) => {
-    if (active && payload && payload.length) {
-      const fullLabel = payload[0].payload?.name || label;
-      return (
-        <div className="bg-[#18181B] border border-neutral-800 p-3 rounded-lg shadow-xl">
-          <p className="text-neutral-400 text-xs mb-1">{fullLabel}</p>
-          <p className="text-[#EA580C] font-bold text-sm">{formatRupiah(payload[0].value)}</p>
-        </div>
-      );
-    }
-    return null;
-  };
-
-  // Framer Motion Variants
-  const containerVars = {
-    hidden: { opacity: 0 },
-    show: { opacity: 1, transition: { staggerChildren: 0.1 } }
-  };
-  const itemVars = {
-    hidden: { opacity: 0, y: 20 },
-    show: { opacity: 1, y: 0, transition: { type: "spring" as const, stiffness: 300, damping: 24 } }
-  };
-
   return (
     <div className="min-h-screen bg-[#0F0F0F] text-neutral-200 font-sans pb-12 selection:bg-[#EA580C] selection:text-white overflow-x-hidden w-full max-w-[100vw]">
-      
       {/* Top Navigation */}
       <nav className="sticky top-0 z-50 bg-[#0F0F0F]/80 backdrop-blur-md border-b border-white/5 px-6 py-4 flex justify-between items-center">
         <div className="flex items-center gap-3">
@@ -213,7 +191,6 @@ export default function AdminDashboard() {
       </nav>
 
       <main className="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8 mt-4 md:mt-8">
-        
         {/* Header Title */}
         <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="mb-8">
           <h2 className="text-3xl font-black text-white tracking-tight">Dashboard Overview</h2>
@@ -221,14 +198,14 @@ export default function AdminDashboard() {
         </motion.div>
 
         {/* 1. Ringkasan KPI (Top Stat Cards) */}
-        <motion.div variants={containerVars} initial="hidden" animate="show" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        <motion.div variants={{ hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.1 } } }} initial="hidden" animate="show" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           {[
             { title: "Omset Hari Ini", value: formatRupiah(kpi.totalOmsetHariIni), icon: DollarSign, color: "text-[#EA580C]", bg: "bg-[#EA580C]/10" },
             { title: "Total Cup Terjual", value: `${kpi.totalCupTerjual} Cup`, icon: Coffee, color: "text-blue-500", bg: "bg-blue-500/10" },
             { title: "Gerobak Aktif", value: `${kpi.gerobakAktifCount} Lokasi`, icon: Store, color: "text-emerald-500", bg: "bg-emerald-500/10" },
             { title: "Rata-rata Penjualan", value: formatRupiah(kpi.rataRataPenjualan), icon: TrendingUp, color: "text-purple-500", bg: "bg-purple-500/10" },
           ].map((stat, i) => (
-            <motion.div key={i} variants={itemVars} className="bg-[#18181B] border border-white/5 rounded-2xl p-5 flex items-center gap-4 hover:border-white/10 transition-colors">
+            <motion.div key={i} variants={{ hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0 } }} className="bg-[#18181B] border border-white/5 rounded-2xl p-5 flex items-center gap-4 hover:border-white/10 transition-colors">
               <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${stat.bg}`}>
                 <stat.icon className={`w-6 h-6 ${stat.color}`} />
               </div>
@@ -242,13 +219,9 @@ export default function AdminDashboard() {
 
         {/* Layout Grid Bawah */}
         <div className="flex flex-col lg:flex-row gap-6">
-          
-          {/* Kolom Kiri: Charts & Tabel (Lebar 2/3) */}
+          {/* Kolom Kiri: Charts & Tabel */}
           <div className="w-full lg:w-2/3 flex flex-col gap-6">
-            
-            {/* 2. Visualisasi Grafik */}
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="flex flex-col sm:flex-row gap-6">
-              
               {/* Area Chart: Tren 7 Hari */}
               <div className="w-full sm:w-1/2 bg-[#18181B] border border-white/5 rounded-2xl p-5 overflow-hidden flex flex-col min-w-0">
                 <h3 className="text-sm font-bold text-white mb-4 shrink-0">Tren Penjualan (7 Hari)</h3>
@@ -262,7 +235,12 @@ export default function AdminDashboard() {
                         </linearGradient>
                       </defs>
                       <XAxis dataKey="name" stroke="#52525B" fontSize={11} tickLine={false} axisLine={false} />
-                      <Tooltip content={<CustomTooltip />} cursor={{ stroke: '#3F3F46', strokeWidth: 1, strokeDasharray: '4 4' }} />
+                      <Tooltip content={({ active, payload }: any) => active && payload?.length ? (
+                        <div className="bg-[#18181B] border border-neutral-800 p-3 rounded-lg shadow-xl">
+                          <p className="text-neutral-400 text-xs mb-1">{payload[0].payload?.name}</p>
+                          <p className="text-[#EA580C] font-bold text-sm">{formatRupiah(payload[0].value)}</p>
+                        </div>
+                      ) : null} cursor={{ stroke: '#3F3F46', strokeWidth: 1, strokeDasharray: '4 4' }} />
                       <Area type="monotone" dataKey="omset" stroke="#EA580C" strokeWidth={3} fillOpacity={1} fill="url(#colorOmset)" />
                     </AreaChart>
                   </ResponsiveContainer>
@@ -273,24 +251,16 @@ export default function AdminDashboard() {
               <div className="w-full sm:w-1/2 bg-[#18181B] border border-white/5 rounded-2xl p-5 overflow-hidden flex flex-col min-w-0">
                 <h3 className="text-sm font-bold text-white mb-4 shrink-0">Performa Antar Gerobak</h3>
                 <div className="w-full min-w-0 overflow-hidden">
-                  <ResponsiveContainer width="100%" height={500}>
-                    <BarChart 
-                      data={charts.performaGerobak} 
-                      layout="vertical" 
-                      margin={{ top: 0, right: 10, left: 0, bottom: 0 }}
-                    >
+                  <ResponsiveContainer width="100%" height={300}>
+                    <BarChart data={charts.performaGerobak} layout="vertical" margin={{ top: 0, right: 10, left: 0, bottom: 0 }}>
                       <XAxis type="number" hide />
-                      <YAxis 
-                        type="category" 
-                        dataKey="name" 
-                        width={110} 
-                        tick={{ fontSize: 11, fill: '#9CA3AF' }} 
-                        interval={0} 
-                        tickLine={false} 
-                        axisLine={false} 
-                        tickFormatter={(value) => value.length > 16 ? value.substring(0, 16) + '...' : value}
-                      />
-                      <Tooltip content={<CustomTooltip />} cursor={{ fill: '#27272A' }} />
+                      <YAxis type="category" dataKey="name" width={110} tick={{ fontSize: 11, fill: '#9CA3AF' }} interval={0} tickLine={false} axisLine={false} tickFormatter={(v) => v.length > 16 ? v.substring(0, 16) + '...' : v} />
+                      <Tooltip content={({ active, payload }: any) => active && payload?.length ? (
+                        <div className="bg-[#18181B] border border-neutral-800 p-3 rounded-lg shadow-xl">
+                          <p className="text-neutral-400 text-xs mb-1">{payload[0].payload?.name}</p>
+                          <p className="text-[#EA580C] font-bold text-sm">{formatRupiah(payload[0].value)}</p>
+                        </div>
+                      ) : null} cursor={{ fill: '#27272A' }} />
                       <Bar dataKey="omset" radius={[0, 4, 4, 0]} barSize={16}>
                         {charts.performaGerobak.map((entry: any, index: number) => (
                           <Cell key={`cell-${index}`} fill={index === 0 ? "#EA580C" : "#3F3F46"} />
@@ -300,10 +270,9 @@ export default function AdminDashboard() {
                   </ResponsiveContainer>
                 </div>
               </div>
-
             </motion.div>
 
-            {/* 3. Live Outlet Monitoring */}
+            {/* Live Outlet Monitoring Table */}
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="bg-[#18181B] border border-white/5 rounded-2xl overflow-hidden">
               <div className="p-5 border-b border-white/5 flex items-center justify-between">
                 <h3 className="text-sm font-bold text-white flex items-center gap-2">
@@ -351,12 +320,10 @@ export default function AdminDashboard() {
                 </table>
               </div>
             </motion.div>
-
           </div>
 
-          {/* Kolom Kanan: Leaderboard & Insights (Lebar 1/3) */}
+          {/* Kolom Kanan: Leaderboard & Insights */}
           <div className="w-full lg:w-1/3 flex flex-col gap-6">
-            
             {/* Star Outlets */}
             <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.4 }} className="bg-[#18181B] border border-white/5 rounded-2xl p-5">
               <h3 className="text-sm font-bold text-white mb-4 flex items-center gap-2">
@@ -405,10 +372,8 @@ export default function AdminDashboard() {
                 Gerobak di atas berada di urutan terbawah performa. Pertimbangkan untuk memindahkan lokasi gerobak jika tren stagnan berlanjut dalam 3 hari ke depan.
               </div>
             </motion.div>
-
           </div>
         </div>
-
       </main>
     </div>
   );
