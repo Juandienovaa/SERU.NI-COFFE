@@ -65,7 +65,7 @@ export default function AboutSection() {
       <motion.div 
         initial={{ opacity: 0, x: 50 }}
         whileInView={{ opacity: 1, x: 0 }}
-        viewport={{ once: true }}
+        viewport={{ once: true, amount: 0.1, margin: "0px 0px -15% 0px" }}
         transition={{ duration: 0.8, ease: "easeOut" }}
         className="w-full md:w-1/2 h-[50vh] md:h-[70vh] relative rounded-3xl overflow-hidden shadow-2xl"
       >

@@ -78,8 +78,6 @@ export default function ProdukPage() {
         }
         
         const activeOutletIds = [...new Set(shifts.map(s => s.outlet_id))];
-        // Since outlet_id in the new schema stores the actual string name (e.g. "Kaca Puri"), 
-        // we map it directly to our state shape without filtering against the old UUID table.
         const active = activeOutletIds.map(name => ({ id: name, name: name }));
         setActiveOutlets(active);
 
@@ -178,7 +176,6 @@ export default function ProdukPage() {
   const removeItem = (id: number) => setCartItems((prev) => prev.filter((c) => c.product.id !== id));
   const clearCart = () => setCartItems([]);
 
-  // 🔥 FIX ERROR ARITHMETIC: Ekstrak angka otomatis dari data.ts
   const getNumericPrice = (priceVal: string | number) => {
     if (typeof priceVal === 'number') return priceVal;
     return parseInt(priceVal.replace(/\D/g, "")) || 0;
@@ -217,38 +214,41 @@ export default function ProdukPage() {
         )}
       </button>
 
-      <section className="relative w-full h-[70vh] md:h-screen flex items-center justify-center overflow-hidden bg-neutral-950">
+      {/* --- HERO SECTION MULAI --- */}
+      <section className="relative w-full h-[70vh] md:h-screen flex flex-col items-center justify-center overflow-hidden bg-neutral-950 px-4">
+        {/* Background Image & Overlay */}
         <Image src="/hero-menu.jpeg" alt="Coffee Hero" fill className="object-cover object-center" priority />
-        <div className="absolute inset-0 bg-neutral-950/40 z-10 pointer-events-none" />
-        <div className="relative z-20 flex flex-col items-center text-center px-6 mt-12 md:mt-0 pointer-events-none">
-          
-          {/* LIVE STATUS BANNER */}
+        <div className="absolute inset-0 bg-neutral-950/50 z-10 pointer-events-none" />
+
+        {/* 1. WRAPPER KHUSUS TOMBOL (Z-50, POINTER-EVENTS-AUTO) */}
+        {/* Terpisah dari judul biar 1000% bisa diklik di PC */}
+        <div className="relative z-50 mb-8 md:mb-12 pointer-events-auto flex justify-center w-full mt-12 md:mt-0">
           <button 
             onClick={() => setIsLocationModalOpen(true)}
-            className={`w-full sm:w-auto px-6 py-3 cursor-pointer relative z-[999] pointer-events-auto flex items-center justify-center gap-2 mb-8 md:mb-12 rounded-full bg-black/40 backdrop-blur-md border border-white/10 hover:border-[#EA580C]/50 hover:bg-black/60 hover:scale-105 transition-all duration-300 shadow-xl max-w-[90vw] sm:max-w-md group ${montserrat.className}`}
+            className={`flex items-center gap-3 px-5 py-3 rounded-full bg-black/60 backdrop-blur-md border border-white/20 hover:border-[#EA580C] hover:bg-black/80 transition-all shadow-2xl cursor-pointer max-w-full group ${montserrat.className}`}
           >
-            <span className="relative flex h-2 w-2 shrink-0 pointer-events-none">
+            {/* Dot Hijau */}
+            <span className="relative flex h-2.5 w-2.5 shrink-0">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
             </span>
             
-            <div className="flex-1 flex items-center min-w-0 pointer-events-none">
-              <span className="text-[9px] sm:text-[10px] font-bold text-white/90 tracking-widest uppercase truncate flex items-center gap-1.5 pointer-events-none">
-                {selectedOutlet ? (
-                  <>
-                    Menyeduh di <span className="text-[#EA580C] truncate max-w-[100px] sm:max-w-[150px] inline-block align-bottom pointer-events-none">{selectedOutlet}</span> <span className="text-white/50 font-normal ml-0.5 pointer-events-none">•</span> Ubah
-                  </>
-                ) : (
-                  <>
-                    {isLoadingOutlets ? "Mencari Gerobak..." : `${activeOutlets.length} Gerobak Aktif`} <span className="text-white/50 font-normal mx-0.5 pointer-events-none">•</span> Pilih Lokasi
-                  </>
-                )}
-              </span>
-            </div>
+            {/* Teks: whitespace-nowrap biar HARAM turun baris */}
+            <span className="text-[10px] font-bold text-white tracking-widest uppercase whitespace-nowrap overflow-hidden text-ellipsis max-w-[200px] sm:max-w-[300px]">
+              {selectedOutlet ? (
+                <>Menyeduh di <span className="text-[#EA580C]">{selectedOutlet}</span></>
+              ) : (
+                <>{isLoadingOutlets ? "Mencari..." : `${activeOutlets.length} Gerobak Aktif`} <span className="text-white/50 mx-1">•</span> Pilih Lokasi</>
+              )}
+            </span>
 
-            <ChevronRight className="w-3.5 h-3.5 text-[#EA580C] group-hover:translate-x-1 transition-transform shrink-0 ml-1 pointer-events-none" />
+            {/* Panah Kanan */}
+            <ChevronRight className="w-4 h-4 text-[#EA580C] group-hover:translate-x-1 transition-transform shrink-0" />
           </button>
+        </div>
 
+        {/* 2. WRAPPER KHUSUS TEKS JUDUL (Z-20, POINTER-EVENTS-NONE) */}
+        <div className="relative z-20 flex flex-col items-center text-center pointer-events-none">
           <motion.h1 
             initial={{ opacity: 0, y: 40 }} 
             animate={{ opacity: 1, y: 0 }} 
@@ -268,8 +268,9 @@ export default function ProdukPage() {
           </motion.p>
         </div>
       </section>
+      {/* --- HERO SECTION SELESAI --- */}
 
-      {/* --- MENU / PRODUCT GRID DENGAN ORANGE GRID BACKGROUND --- */}
+      {/* --- MENU / PRODUCT GRID --- */}
       <div 
         className="relative z-10 pb-12 md:pb-32"
         style={{
@@ -278,7 +279,6 @@ export default function ProdukPage() {
           backgroundSize: "40px 40px"
         }}
       >
-        {/* Category Filters */}
         <nav 
           className="sticky top-[80px] z-40 py-4 shadow-md w-full border-b border-white/30"
           style={{
@@ -334,7 +334,6 @@ export default function ProdukPage() {
           </div>
         </nav>
 
-        {/* Product Grid */}
         <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-12 py-12 md:py-20">
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6 lg:gap-8">
             {filteredProducts.map((product) => {
@@ -355,7 +354,6 @@ export default function ProdukPage() {
         </main>
       </div>
 
-      {/* 🔥 TRIK NUKLIR VIDEO MOBILE: Pakai dangerouslySetInnerHTML */}
       <section className="relative w-full h-[70vh] md:h-[90vh] overflow-hidden flex items-center justify-center rounded-t-[40px] md:rounded-t-[80px] shadow-[0_-20px_50px_rgba(0,0,0,0.3)] z-30 -mt-8 md:-mt-16 bg-neutral-900">
         <div 
           className="absolute inset-0 w-full h-full pointer-events-none"
@@ -374,10 +372,8 @@ export default function ProdukPage() {
           }}
         />
         
-        {/* Dark overlay for better text readability */}
         <div className="absolute inset-0 bg-neutral-950/50 z-10 pointer-events-none" />
         
-        {/* Typography Overlay */}
         <div className="relative z-20 flex flex-col items-center text-center px-6 w-full max-w-5xl mx-auto pointer-events-none">
           <motion.img
             src="/logo-brand.png" 

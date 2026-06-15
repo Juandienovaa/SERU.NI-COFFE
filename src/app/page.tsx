@@ -14,6 +14,14 @@ import Footer from "@/components/Footer";
 
 export default function Home() {
   const [isLoaded, setIsLoaded] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth <= 768);
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
 
   // Initialize Lenis smooth scroll once preloading is completed
   useEffect(() => {
@@ -54,7 +62,7 @@ export default function Home() {
         
         <SequenceScroll />
 
-        <div className="-mt-[100vh] relative z-20 bg-white rounded-t-[32px] sm:rounded-t-[48px] overflow-hidden shadow-[0_-20px_60px_rgba(0,0,0,0.06)] border-t border-neutral-100">
+        <div className="-mt-[100vh] relative z-20 !bg-white shadow-none drop-shadow-none rounded-t-[32px] sm:rounded-t-[48px] overflow-hidden border-t border-neutral-100">
           
           <FeaturesBento />
 
@@ -80,10 +88,10 @@ export default function Home() {
             {/* 2. Konten Teks (Di atas pas di HP, Di Kiri pas di PC) */}
             <div className="relative z-20 max-w-7xl mx-auto px-6 sm:px-12 md:px-16 w-full h-full flex flex-col justify-center">
               <motion.div
-                initial={{ opacity: 0, x: -50 }}
+                initial={isMobile ? { opacity: 1, x: 0 } : { opacity: 0, x: -50 }}
                 whileInView={{ opacity: 1, x: 0 }}
                 viewport={{ once: true, margin: "-10%" }}
-                transition={{ duration: 0.8, ease: "easeOut" }}
+                transition={{ duration: isMobile ? 0 : 0.8, ease: "easeOut" }}
                 className="max-w-xl flex flex-col justify-center text-left md:py-32"
               >
                 <div className="flex items-center gap-3 mb-4 sm:mb-6">
@@ -102,9 +110,14 @@ export default function Home() {
                   Dari resepsi pernikahan yang syahdu, gathering kantor, sampai festival musik meriah! Stand <span className="font-black text-neutral-900">Take It & Go</span> kami siap menyajikan kesegaran kopi premium Seru.ni langsung di lokasimu.
                 </p>
                 
-                <button className="bg-neutral-900 hover:bg-[#EA580C] text-white px-8 py-4 rounded-full font-black uppercase tracking-widest text-xs transition-colors self-start shadow-lg hover:shadow-orange-500/30 active:scale-95">
+                <a 
+                  href="https://wa.me/6283125525115?text=Halo%2C%20saya%20ingin%20pesan%20stand%20nya%20dan%20ingin%20liat%20info%20lebih%20lanjut." 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="inline-block bg-neutral-900 hover:bg-[#EA580C] text-white px-8 py-4 rounded-full font-black uppercase tracking-widest text-xs transition-colors self-start shadow-lg hover:shadow-orange-500/30 active:scale-95"
+                >
                   Booking Stand Sekarang
-                </button>
+                </a>
               </motion.div>
             </div>
 
@@ -133,32 +146,20 @@ export default function Home() {
                   src="/stand-event.png" 
                   alt="Seruni Stand Event Take It & Go"
                   fill
-                  className="object-contain object-bottom mix-blend-multiply hover:scale-105 transition-transform duration-700"
+                  className="object-contain object-bottom mix-blend-multiply md:mix-blend-normal shadow-none md:shadow-lg hover:scale-105 transition-transform duration-700"
                 />
               </div>
 
               {/* Floating Badge Kiri (Lokasi) */}
-              <motion.div 
-                initial={{ opacity: 0, x: -20 }}
-                whileInView={{ opacity: 1, x: 0 }}
-                viewport={{ once: true, margin: "-50px" }}
-                transition={{ delay: 0.3, duration: 0.6 }}
-                className="absolute top-[30%] left-4 sm:left-8 bg-white/90 backdrop-blur-sm border border-neutral-200 px-3 py-1.5 rounded-full shadow-lg shadow-black/5 z-20 flex items-center gap-1.5"
-              >
+              <div className="absolute top-[30%] left-4 sm:left-8 bg-white/90 backdrop-blur-sm border border-neutral-200 px-3 py-1.5 rounded-full shadow-lg shadow-black/5 z-20 flex items-center gap-1.5">
                 <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
                 <span className="text-[9px] sm:text-[10px] font-black text-neutral-800 uppercase tracking-widest">Tanjungpinang</span>
-              </motion.div>
+              </div>
 
               {/* Floating Badge Atas Kanan (Promo) */}
-              <motion.div 
-                initial={{ opacity: 0, y: -20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, margin: "-50px" }}
-                transition={{ delay: 0.5, duration: 0.6 }}
-                className="absolute top-4 right-4 sm:right-8 bg-white/80 backdrop-blur-md border border-[#EA580C]/30 text-[#EA580C] px-3 py-1.5 rounded-full shadow-md z-20 flex items-center justify-center"
-              >
+              <div className="absolute top-4 right-4 sm:right-8 bg-white/80 backdrop-blur-md border border-[#EA580C]/30 text-[#EA580C] px-3 py-1.5 rounded-full shadow-md z-20 flex items-center justify-center">
                 <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest">Siap Meluncur</span>
-              </motion.div>
+              </div>
 
             </div>
           </section>

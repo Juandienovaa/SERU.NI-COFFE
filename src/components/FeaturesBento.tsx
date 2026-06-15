@@ -81,12 +81,12 @@ export default function FeaturesBento() {
           <motion.div
             initial={{ opacity: 0, y: 30 }}
             whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: "-10%" }}
+            viewport={{ once: true, amount: 0.1, margin: "0px 0px -15% 0px" }}
             transition={{ duration: 0.6 }}
             className="md:col-span-2 relative rounded-3xl overflow-hidden border border-neutral-100 bg-neutral-50 p-8 flex flex-col justify-between group shadow-sm hover:shadow-md transition-all duration-300"
           >
             <div className="absolute inset-0 z-0 opacity-45 group-hover:scale-105 group-hover:opacity-55 transition-all duration-700">
-              <Image src="/images/bento_coffee_beans.png" alt="Biji Kopi Pilihan" fill className="object-cover" sizes="(max-width: 768px) 100vw, 66vw" />
+              <Image src="/images/ramdani.jpeg" alt="Seni di Setiap Seduhan" fill className="object-cover" sizes="(max-width: 768px) 100vw, 66vw" />
             </div>
             <div className="absolute inset-0 bg-gradient-to-t from-neutral-50 via-neutral-50/50 to-transparent z-10" />
             <div className="relative z-20 flex items-center gap-3">
@@ -96,8 +96,8 @@ export default function FeaturesBento() {
               <span className="text-xs font-bold tracking-widest text-neutral-800 uppercase">Biji Kopi Pilihan</span>
             </div>
             <div className="relative z-20 max-w-md mt-auto">
-              <h3 className="text-2xl font-bold tracking-tight text-neutral-900 mb-2">100% Arabika & Robusta Single Origin</h3>
-              <p className="text-sm text-neutral-600 font-light leading-relaxed">Kopi disuplai langsung dari petani lokal terbaik Indonesia. Dipanggang secara presisi oleh roaster profesional untuk mengeluarkan aroma terbaik.</p>
+              <h3 className="text-2xl font-bold tracking-tight text-neutral-900 mb-2">Seni di Setiap Seduhan</h3>
+              <p className="text-sm text-neutral-600 font-light leading-relaxed">Saksikan ketelitian barista kami menyiapkan setiap seruput Matcha premium Anda. Dari Kopi Susu hingga racikan spesial, dedikasi kami memastikan kesempurnaan di setiap gelas Seru.ni.</p>
             </div>
           </motion.div>
 
@@ -105,7 +105,7 @@ export default function FeaturesBento() {
           <motion.div
             initial={{ opacity: 0, y: 30 }}
             whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: "-10%" }}
+            viewport={{ once: true, amount: 0.1, margin: "0px 0px -15% 0px" }}
             transition={{ duration: 0.6, delay: 0.15 }}
             className="md:row-span-2 relative rounded-3xl overflow-hidden border border-neutral-100 bg-neutral-900 p-8 flex flex-col justify-between group shadow-sm text-white"
           >
@@ -129,12 +129,12 @@ export default function FeaturesBento() {
           <motion.div
             initial={{ opacity: 0, y: 30 }}
             whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: "-10%" }}
+            viewport={{ once: true, amount: 0.1, margin: "0px 0px -15% 0px" }}
             transition={{ duration: 0.6, delay: 0.1 }}
             className="relative rounded-3xl overflow-hidden border border-neutral-100 bg-neutral-50 p-8 flex flex-col justify-between group shadow-sm hover:shadow-md transition-all duration-300"
           >
             <div className="absolute inset-0 z-0 opacity-45 group-hover:scale-105 group-hover:opacity-55 transition-all duration-700">
-              <Image src="/images/bento_barista_drip.png" alt="Diseduh Segar" fill className="object-cover" sizes="(max-width: 768px) 100vw, 33vw" />
+              <Image src="/images/mesin-kopi.jpg" alt="Pembangkit Energi Otentik" fill className="object-cover" sizes="(max-width: 768px) 100vw, 33vw" />
             </div>
             <div className="absolute inset-0 bg-gradient-to-t from-neutral-50 via-neutral-50/50 to-transparent z-10" />
             <div className="relative z-20 flex items-center gap-3">
@@ -144,8 +144,8 @@ export default function FeaturesBento() {
               <span className="text-xs font-bold tracking-widest text-neutral-800 uppercase">Proses Seduh</span>
             </div>
             <div className="relative z-20 mt-auto">
-              <h3 className="text-xl font-bold tracking-tight text-neutral-900 mb-1">Diseduh Segar Instan</h3>
-              <p className="text-xs text-neutral-600 font-light leading-relaxed">Dibuat langsung saat dipesan. Menjaga kualitas minyak esensial dan kehangatan kopi murni.</p>
+              <h3 className="text-xl font-bold tracking-tight text-neutral-900 mb-1">Pembangkit Energi Otentik</h3>
+              <p className="text-xs text-neutral-600 font-light leading-relaxed">Jantung rasa Seru.ni. Kami menggunakan mesin espresso komersial performa tinggi untuk mengekstraksi rasa kaya dan konsisten dari biji kopi premium kami setiap harinya.</p>
             </div>
           </motion.div>
 
@@ -153,7 +153,7 @@ export default function FeaturesBento() {
           <motion.div
             initial={{ opacity: 0, y: 30 }}
             whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: "-10%" }}
+            viewport={{ once: true, amount: 0.1, margin: "0px 0px -15% 0px" }}
             transition={{ duration: 0.6, delay: 0.2 }}
             className="relative rounded-3xl overflow-hidden border border-neutral-100 bg-neutral-50 p-8 flex flex-col justify-between group shadow-sm hover:shadow-md transition-all duration-300"
           >

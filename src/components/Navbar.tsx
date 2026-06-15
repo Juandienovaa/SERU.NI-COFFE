@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { Menu, X, Phone, Mail, MapPin, LogIn, ArrowRight } from "lucide-react";
 import Image from "next/image";
 import CinematicLoader from "@/components/CinematicLoader";
+import SeruniLogo from "@/components/SeruniLogo";
 
 // 3 MENU UTAMA
 const navLinks = [
@@ -73,7 +74,7 @@ export default function Navbar() {
             <div className={`relative transition-all duration-500 flex items-center ${
               isPastSequence ? "h-12" : "h-16 md:h-24"
             }`}>
-              <img src="/logo-brand.png" alt="Seruni" className="h-10 sm:h-12 w-auto object-contain" />
+              <SeruniLogo className="h-10 sm:h-12 w-auto object-contain" />
             </div>
           </motion.a>
           {/* BURGER ICON (ALWAYS VISIBLE) */}

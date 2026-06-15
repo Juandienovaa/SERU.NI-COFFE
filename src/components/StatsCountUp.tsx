@@ -12,7 +12,7 @@ interface CountUpProps {
 function CountUp({ to, duration = 1.8, decimals = 0 }: CountUpProps) {
   const [count, setCount] = useState(0);
   const ref = useRef(null);
-  const isInView = useInView(ref, { once: true, amount: 0.2 });
+  const isInView = useInView(ref, { once: true, amount: 0.1, margin: "0px 0px -15% 0px" });
 
   useEffect(() => {
     if (!isInView) return;
@@ -45,15 +45,15 @@ function CountUp({ to, duration = 1.8, decimals = 0 }: CountUpProps) {
 
 const stats = [
   {
-    value: 12500,
+    value: 5000,
     suffix: "+",
     label: "Seduhan Terjual",
     sub: "Kopi segar disajikan di kawasan perkantoran",
     decimals: 0
   },
   {
-    value: 48,
-    suffix: "",
+    value: 10,
+    suffix: "+",
     label: "Armada Gerobak",
     sub: "Tersebar aktif di seluruh koridor Yos Sudarso",
     decimals: 0
@@ -84,7 +84,7 @@ export default function StatsCountUp() {
               key={idx}
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
+              viewport={{ once: true, amount: 0.1, margin: "0px 0px -15% 0px" }}
               transition={{ duration: 0.5, delay: idx * 0.1 }}
               className="flex flex-col gap-3 p-6 rounded-2xl bg-white border border-neutral-200/40 shadow-[0_4px_20px_rgba(0,0,0,0.01)] hover:shadow-md transition-shadow"
             >

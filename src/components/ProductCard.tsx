@@ -33,7 +33,7 @@ export default function ProductCard({ product, onAdd, isSoldOut }: ProductCardPr
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: "-10%" }}
+      viewport={{ once: true, amount: 0.1, margin: "0px 0px -15% 0px" }}
       transition={{ duration: 0.4 }}
       className="bg-white rounded-2xl sm:rounded-3xl flex flex-col group border border-neutral-100 shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden h-full"
     >

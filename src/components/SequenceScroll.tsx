@@ -131,8 +131,8 @@ export default function SequenceScroll() {
   }, [imagesLoaded]);
 
   return (
-    <div ref={containerRef} className="relative w-full h-[400vh] bg-[#171717] overflow-visible">
-      <div className="sticky top-0 h-screen w-full flex items-center justify-center bg-[#171717] overflow-hidden">
+    <div ref={containerRef} className="relative w-full h-[400vh] bg-[#171717] overflow-visible shadow-none drop-shadow-none">
+      <div className="sticky top-0 h-screen w-full flex items-center justify-center bg-[#171717] overflow-hidden shadow-none drop-shadow-none">
         
         <canvas
           ref={canvasRef}
@@ -143,13 +143,13 @@ export default function SequenceScroll() {
         <AnimatePresence>
           {imagesLoaded && !isScrolled && (
             <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0, scale: 1.1, filter: "blur(10px)" }}
-              transition={{ duration: 0.8, ease: "easeOut" }}
-              className="absolute inset-0 z-10 flex flex-col items-center justify-center pointer-events-none bg-black/40"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.6, ease: "easeOut" }}
+              className="absolute inset-0 z-10 flex flex-col items-center justify-center pointer-events-none bg-black/40 will-change-transform"
             >
-              <div className="flex flex-col items-center justify-center mt-[-15vh] md:mt-[-15vh] px-4">
+              <div className="flex flex-col items-center justify-center mt-[-10vh] md:mt-[-5vh] px-4">
                 <h1 className="text-[25vw] md:text-[18vw] lg:text-[16vw] leading-[0.8] font-black tracking-tighter uppercase text-center flex flex-col">
                   <span className="text-white drop-shadow-2xl">
                     SERU.NI
@@ -158,19 +158,19 @@ export default function SequenceScroll() {
                     COFFEE
                   </span>
                 </h1>
-              </div>
 
-              {/* FLOATING SCROLL INDICATOR (Ala Apple) - DIPERBESAR */}
-              <div className="absolute bottom-6 md:bottom-12 flex flex-col items-center gap-4 bg-black/40 backdrop-blur-md px-8 py-5 rounded-[40px] border border-white/20 shadow-2xl">
-                <span className="text-xs sm:text-sm font-bold tracking-[0.25em] text-white uppercase drop-shadow-md">
-                  Geser Untuk Mulai
-                </span>
-                <div className="w-7 h-12 border-[3px] border-white/70 rounded-full flex justify-center p-1.5 shadow-inner">
-                  <motion.div 
-                    animate={{ y: [0, 16, 0], opacity: [0.5, 1, 0.5] }}
-                    transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
-                    className="w-1.5 h-3.5 bg-[#EA580C] rounded-full shadow-[0_0_10px_rgba(234,88,12,0.8)]" 
-                  />
+                {/* FLOATING SCROLL INDICATOR (Ala Apple) - DIPERBESAR */}
+                <div className="mt-8 md:mt-12 flex flex-col items-center gap-4 bg-black/40 backdrop-blur-md px-8 py-5 rounded-[40px] border border-white/20 shadow-2xl pointer-events-auto">
+                  <span className="text-xs sm:text-sm font-bold tracking-[0.25em] text-white uppercase drop-shadow-md">
+                    Geser Untuk Mulai
+                  </span>
+                  <div className="w-7 h-12 border-[3px] border-white/70 rounded-full flex justify-center p-1.5 shadow-inner">
+                    <motion.div 
+                      animate={{ y: [0, 16, 0], opacity: [0.5, 1, 0.5] }}
+                      transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+                      className="w-1.5 h-3.5 bg-[#EA580C] rounded-full shadow-[0_0_10px_rgba(234,88,12,0.8)] will-change-transform" 
+                    />
+                  </div>
                 </div>
               </div>
             </motion.div>
@@ -180,7 +180,7 @@ export default function SequenceScroll() {
         {/* OVERLAY 1 (KIRI - 30% SCROLL) */}
         <motion.div
           style={{ opacity: opacity1 }}
-          className="absolute top-[35%] md:top-[40%] left-[5%] md:left-[8%] transform -translate-y-1/2 z-30 pointer-events-none w-[90%] md:w-auto"
+          className="absolute top-[35%] md:top-[40%] left-[5%] md:left-[8%] -translate-y-1/2 z-30 pointer-events-none w-[90%] md:w-auto will-change-transform"
         >
           <h2 className="text-[13vw] sm:text-6xl md:text-6xl lg:text-7xl xl:text-[6.5rem] font-black tracking-tighter leading-[0.85] drop-shadow-[0_15px_30px_rgba(0,0,0,0.8)]">
             <span className="text-white">Siap</span><br />
@@ -191,7 +191,7 @@ export default function SequenceScroll() {
         {/* OVERLAY 2 (KANAN - 60% SCROLL) */}
         <motion.div
           style={{ opacity: opacity2 }}
-          className="absolute top-[65%] md:top-[50%] right-[5%] md:right-[8%] transform -translate-y-1/2 z-30 pointer-events-none text-right w-[90%] md:w-auto"
+          className="absolute top-[65%] md:top-[50%] right-[5%] md:right-[8%] -translate-y-1/2 z-30 pointer-events-none text-right w-[90%] md:w-auto will-change-transform"
         >
           <h2 className="text-[14vw] sm:text-6xl md:text-6xl lg:text-7xl xl:text-[6.5rem] font-black tracking-tighter leading-[0.85] drop-shadow-[0_15px_30px_rgba(0,0,0,0.8)]">
             <span className="text-white">Sepanjang</span><br />

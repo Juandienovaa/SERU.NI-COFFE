@@ -113,7 +113,7 @@ export default function SeriesGallery() {
               onPointerLeave={(e) => { if (e.pointerType === 'mouse') setCursorIdx(null); }}
               
               // DURASI ANIMASI 1000ms (SANGAT SLOW & SMOOTH)
-              className={`relative flex-1 group overflow-hidden transition-all duration-1000 ease-in-out border-b md:border-b-0 md:border-r border-neutral-900/50 
+              className={`relative flex-1 group overflow-hidden transition-all duration-0 md:duration-1000 ease-in-out border-b md:border-b-0 md:border-r border-neutral-900/50 
                 ${isMobileActive ? 'flex-[3]' : ''} 
                 md:hover:flex-[3.5]
               `}
@@ -123,7 +123,7 @@ export default function SeriesGallery() {
                 src={drink.image}
                 alt={drink.name}
                 fill
-                className={`object-cover transition-all duration-1000 ease-in-out
+                className={`object-cover transition-all duration-0 md:duration-1000 ease-in-out
                   ${isMobileActive ? 'grayscale-0 scale-100' : 'grayscale scale-110'}
                   md:group-hover:grayscale-0 md:group-hover:scale-100
                 `}
@@ -131,13 +131,13 @@ export default function SeriesGallery() {
               />
 
               {/* Shading Gelap */}
-              <div className={`absolute inset-0 bg-gradient-to-t from-neutral-950 via-neutral-950/60 to-transparent transition-opacity duration-1000
+              <div className={`absolute inset-0 bg-gradient-to-t from-neutral-950 via-neutral-950/60 to-transparent transition-opacity duration-0 md:duration-1000
                 ${isMobileActive ? 'opacity-90' : 'opacity-100'}
                 md:group-hover:opacity-60
               `} />
 
               {/* Judul Minuman (Slide naik pelan pas aktif) */}
-              <div className={`absolute left-6 sm:left-10 z-10 flex flex-col gap-1 pointer-events-none transition-all duration-1000
+              <div className={`absolute left-6 sm:left-10 z-10 flex flex-col gap-1 pointer-events-none transition-all duration-0 md:duration-1000
                 ${isMobileActive ? 'bottom-28' : 'bottom-6'}
                 md:bottom-10 md:group-hover:bottom-32
               `}>
@@ -150,7 +150,7 @@ export default function SeriesGallery() {
               </div>
 
               {/* DESKRIPSI (FADE IN + SLIDE UP DENGAN DELAY SANGAT SMOOTH) */}
-              <div className={`absolute bottom-6 left-6 right-6 sm:left-10 sm:right-10 z-10 flex flex-col gap-2 transition-all duration-1000
+              <div className={`absolute bottom-6 left-6 right-6 sm:left-10 sm:right-10 z-10 flex flex-col gap-2 transition-all duration-0 md:duration-1000
                 ${isMobileActive ? 'opacity-100 translate-y-0 delay-200' : 'opacity-0 translate-y-8 pointer-events-none'}
                 md:group-hover:opacity-100 md:group-hover:translate-y-0 md:group-hover:delay-200 md:opacity-0 md:translate-y-8
               `}>
@@ -163,7 +163,7 @@ export default function SeriesGallery() {
               </div>
 
               {/* Nomor Index */}
-              <div className="absolute top-6 right-6 md:top-8 md:right-8 z-10 pointer-events-none text-xl md:text-2xl font-bold text-white/30 transition-colors duration-1000 md:group-hover:text-white/60">
+              <div className="absolute top-6 right-6 md:top-8 md:right-8 z-10 pointer-events-none text-xl md:text-2xl font-bold text-white/30 transition-colors duration-0 md:duration-1000 md:group-hover:text-white/60">
                 {String(idx + 1).padStart(2, "0")}
               </div>
             </div>

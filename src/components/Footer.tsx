@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useRef } from "react";
 import { motion } from "motion/react";
-import { ArrowUpRight, MessageSquare, Coffee } from "lucide-react";
+import { ArrowUpRight, MessageSquare } from "lucide-react";
+import SeruniLogo from "@/components/SeruniLogo";
 
 const Instagram = ({ className }: { className?: string }) => (
   <svg
@@ -58,16 +59,14 @@ export default function Footer() {
       {/* Top Section: Directory and contacts */}
       <div className="grid grid-cols-1 md:grid-cols-12 gap-12 w-full mb-16 relative z-10">
         
-        <div className="md:col-span-5 flex flex-col gap-6">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-full bg-[#DC7331] flex items-center justify-center">
-              <Coffee className="w-4 h-4 text-neutral-950 fill-neutral-950" />
-            </div>
-            <span className="text-xl font-bold tracking-widest text-white uppercase">
-              seru.ni
-            </span>
+        <div className="md:col-span-5 flex flex-col items-start gap-6">
+          <div className="flex flex-col items-start gap-2 w-full pt-4">
+            <SeruniLogo className="h-24 md:h-32 w-auto object-contain" /> 
+            <p className="text-sm md:text-base text-white font-medium leading-relaxed max-w-sm mt-4">
+              Jl. Yos Sudarso, Tanjungpinang Bar., Kec. Tanjungpinang Bar., Kota Tanjung Pinang, Kepulauan Riau 29112
+            </p>
           </div>
-          <p className="text-sm text-neutral-400 font-light leading-relaxed max-w-sm">
+          <p className="text-sm text-neutral-400 font-light leading-relaxed max-w-sm mt-2">
             Menghubungkan penikmat rasa dengan biji kopi terbaik Nusantara lewat kenyamanan armada jalanan. Tanpa sekat, tanpa batas.
           </p>
         </div>
@@ -156,9 +155,9 @@ export default function Footer() {
           </a>
         </div>
         
-        <span>© 2026 SERU.NI. SEMUA HAK CIPTANYA.</span>
+        <span>Copyright © Seru.ni Coffee. All rights reserved.</span>
         
-        <span>DESIGNED BY ANTIGRAVITY</span>
+        <span>DESIGNED BY TEAM 13</span>
       </div>
 
       {/* Subtle bottom absolute glow background */}
