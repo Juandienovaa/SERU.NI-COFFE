@@ -34,9 +34,9 @@ export default function AboutSection() {
         </div>
 
         {/* Judul Utama */}
-        <h2 className="text-5xl md:text-6xl lg:text-7xl font-extrabold tracking-tight leading-[1.1] text-neutral-900">
-          #NGOPI ASIK <br />
-          <span className="text-[#DC7331]">DENGAN SERU.NI</span>
+        <h2 className="text-5xl md:text-6xl lg:text-7xl font-extrabold tracking-tighter-custom leading-[1.1] text-neutral-950 flex flex-col gap-y-1">
+          <span>Ngopi</span>
+          <span className="text-[#EA580C]">SERU-seruan disiNI</span>
         </h2>
 
         {/* Paragraf Penjelasan */}

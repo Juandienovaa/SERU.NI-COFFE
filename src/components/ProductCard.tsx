@@ -1,7 +1,6 @@
 "use client";
 
 import Image from "next/image";
-import { motion } from "framer-motion";
 import { Star, Plus } from "lucide-react";
 import { Product } from "@/app/produk/data";
 
@@ -30,11 +29,7 @@ export default function ProductCard({ product, onAdd, isSoldOut }: ProductCardPr
     : product.price;
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, amount: 0.1, margin: "0px 0px -15% 0px" }}
-      transition={{ duration: 0.4 }}
+    <div
       className="bg-white rounded-2xl sm:rounded-3xl flex flex-col group border border-neutral-100 shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden h-full"
     >
       <div className="w-full relative h-[200px] sm:h-[260px] bg-[#FDF9F1] overflow-hidden flex-shrink-0">
@@ -105,6 +100,6 @@ export default function ProductCard({ product, onAdd, isSoldOut }: ProductCardPr
           </button>
         </div>
       </div>
-    </motion.div>
+    </div>
   );
 }

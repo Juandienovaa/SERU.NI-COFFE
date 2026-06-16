@@ -68,10 +68,63 @@ export async function catatPenjualanProduk(shiftId: string, productId: number, q
   return { newCurrentStock: targetItem?.sisa || 0, isEmpty: (targetItem?.sisa || 0) <= 0 };
 }
 
-export async function tutupShift(shiftId: string, totalOmset: number) {
-  const { data, error } = await supabase.from("shifts").update({ status: "CLOSED", closed_at: new Date().toISOString(), total_sales: totalOmset }).eq("id", shiftId).select().single();
+export async function tutupShift(shiftId: string, totalOmset: number, finalInventoryData: any[]) {
+  const { data, error } = await supabase.from("shifts").update({ 
+    status: "CLOSED", 
+    closed_at: new Date().toISOString(), 
+    total_sales: totalOmset,
+    inventory_data: finalInventoryData
+  }).eq("id", shiftId).select().single();
   if (error) throw error;
   return data;
+}
+
+export async function tambahStokProduk(shiftId: string, productId: number, addedAmount: number) {
+  // 1. Update JSON inventory_data di tabel shifts
+  const { data: shift, error: fetchError } = await supabase.from("shifts").select("inventory_data").eq("id", shiftId).single();
+  if (fetchError) throw fetchError;
+  
+  const currentInventory = shift.inventory_data || [];
+  const updatedInventory = currentInventory.map((item: any) => {
+    if (item.product_id === productId) {
+      const currentAdded = item.added_stock || 0;
+      return { 
+        ...item, 
+        sisa: item.sisa + addedAmount,
+        added_stock: currentAdded + addedAmount
+      };
+    }
+    return item;
+  });
+
+  const { error: updateError } = await supabase.from("shifts").update({ inventory_data: updatedInventory }).eq("id", shiftId);
+  if (updateError) throw updateError;
+
+  // 2. Update tabel inventory (standalone)
+  const { data: invRow } = await supabase
+    .from("inventory")
+    .select("id, current_stock, added_stock")
+    .eq("shift_id", shiftId)
+    .eq("product_id", productId)
+    .maybeSingle();
+
+  if (invRow) {
+    const newAddedStock = (invRow.added_stock || 0) + addedAmount;
+    const newCurrentStock = (invRow.current_stock || 0) + addedAmount;
+    await supabase.from("inventory").update({ 
+      added_stock: newAddedStock,
+      current_stock: newCurrentStock
+    }).eq("id", invRow.id);
+  }
+
+  // 3. Insert ke restock_logs
+  await supabase.from("restock_logs").insert([{
+    shift_id: shiftId,
+    product_id: productId,
+    added_amount: addedAmount
+  }]);
+
+  return true;
 }
 
 // --- NEW DATA AGGREGATION FOR DASHBOARD OWNER ---

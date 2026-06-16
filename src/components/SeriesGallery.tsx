@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { motion, useMotionValue, useSpring } from "motion/react";
 import Image from "next/image";
 import { ArrowUpRight } from "lucide-react";
 
@@ -58,30 +57,15 @@ export default function SeriesGallery() {
   // State untuk melacak hover di PC (buat nampilin kursor melayang)
   const [cursorIdx, setCursorIdx] = useState<number | null>(null);
 
-  const mouseX = useMotionValue(0);
-  const mouseY = useMotionValue(0);
-  const springX = useSpring(mouseX, { stiffness: 150, damping: 20 });
-  const springY = useSpring(mouseY, { stiffness: 150, damping: 20 });
-
   useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-
-    const handleMouseMove = (e: MouseEvent) => {
-      mouseX.set(e.clientX);
-      mouseY.set(e.clientY);
-    };
-
-    container.addEventListener("mousemove", handleMouseMove);
-    return () => container.removeEventListener("mousemove", handleMouseMove);
-  }, [mouseX, mouseY]);
+    // Custom cursor logic removed as requested to avoid framer-motion
+  }, []);
 
   return (
     <section 
       id="seri" 
       ref={containerRef}
-      // Diberikan h-[140vh] di HP biar ruang mekarnya sangat lega dan slow
-      className="relative w-full h-[140vh] md:h-screen bg-neutral-950 flex flex-col cursor-auto md:cursor-none"
+      className="relative w-full h-[60vh] md:h-screen bg-neutral-950 flex flex-col cursor-auto"
     >
       {/* --- JUDUL SECTION (DIJAMIN GAK NABRAK LOGO NAVBAR) --- */}
       {/* Pakai 'relative' dan padding pt-32 biar dia turun jauh dari batas atas layar */}
@@ -98,72 +82,52 @@ export default function SeriesGallery() {
       </div>
 
       {/* --- KARTU KOPI --- */}
-      <div className="w-full flex-1 flex flex-col md:flex-row items-stretch select-none border-t border-neutral-900/50">
+      <div className="w-full flex-1 flex flex-row items-stretch select-none border-t border-neutral-900/50">
         {drinks.map((drink, idx) => {
           const isMobileActive = activeIdx === idx;
 
           return (
             <div
               key={idx}
-              // KLIK DI HP: Toggle state activeIdx
               onClick={() => setActiveIdx(isMobileActive ? null : idx)}
-              
-              // HOVER DI PC: Set state buat kursor box aja
               onPointerEnter={(e) => { if (e.pointerType === 'mouse') setCursorIdx(idx); }}
               onPointerLeave={(e) => { if (e.pointerType === 'mouse') setCursorIdx(null); }}
-              
-              // DURASI ANIMASI 1000ms (SANGAT SLOW & SMOOTH)
-              className={`relative flex-1 group overflow-hidden transition-all duration-0 md:duration-1000 ease-in-out border-b md:border-b-0 md:border-r border-neutral-900/50 
-                ${isMobileActive ? 'flex-[3]' : ''} 
-                md:hover:flex-[3.5]
-              `}
+              className={`relative flex-1 group overflow-hidden transition-all duration-300 ease-in-out md:border-r border-neutral-900/50 hover:flex-[3.5] ${isMobileActive ? 'flex-[3]' : ''}`}
             >
               {/* Gambar Kopi */}
               <Image
                 src={drink.image}
                 alt={drink.name}
                 fill
-                className={`object-cover transition-all duration-0 md:duration-1000 ease-in-out
-                  ${isMobileActive ? 'grayscale-0 scale-100' : 'grayscale scale-110'}
-                  md:group-hover:grayscale-0 md:group-hover:scale-100
-                `}
+                className={`object-cover transition-all duration-300 ease-in-out md:grayscale md:scale-110 md:group-hover:grayscale-0 md:group-hover:scale-100 ${isMobileActive ? 'grayscale-0 scale-100' : ''}`}
                 sizes="(max-width: 768px) 100vw, 25vw"
               />
 
               {/* Shading Gelap */}
-              <div className={`absolute inset-0 bg-gradient-to-t from-neutral-950 via-neutral-950/60 to-transparent transition-opacity duration-0 md:duration-1000
-                ${isMobileActive ? 'opacity-90' : 'opacity-100'}
-                md:group-hover:opacity-60
-              `} />
+              <div className={`absolute inset-0 bg-gradient-to-t from-neutral-950 via-neutral-950/60 to-transparent transition-opacity duration-300 md:opacity-100 md:group-hover:opacity-60 ${isMobileActive ? 'opacity-90' : 'opacity-100'}`} />
 
-              {/* Judul Minuman (Slide naik pelan pas aktif) */}
-              <div className={`absolute left-6 sm:left-10 z-10 flex flex-col gap-1 pointer-events-none transition-all duration-0 md:duration-1000
-                ${isMobileActive ? 'bottom-28' : 'bottom-6'}
-                md:bottom-10 md:group-hover:bottom-32
-              `}>
-                <span className="text-[10px] md:text-xs tracking-wider text-[#DC7331] font-semibold uppercase drop-shadow-md">
+              {/* Judul Minuman */}
+              <div className={`absolute left-2 right-2 sm:left-10 z-10 flex flex-col gap-0.5 md:gap-1 pointer-events-none transition-all duration-300 md:bottom-10 md:group-hover:bottom-32 ${isMobileActive ? 'bottom-20 md:bottom-28' : 'bottom-4 md:bottom-6'}`}>
+                <span className="text-[6px] md:text-xs tracking-wider text-[#DC7331] font-bold uppercase drop-shadow-md">
                   {drink.category}
                 </span>
-                <h3 className="text-xl sm:text-2xl md:text-3xl font-bold text-white tracking-tight leading-tight drop-shadow-lg">
+                <h3 className={`font-black text-white tracking-tight leading-tight drop-shadow-lg transition-all duration-300 ${isMobileActive ? 'text-xs md:text-3xl' : 'text-[8px] md:text-3xl'} sm:text-2xl`}>
                   {drink.name}
                 </h3>
               </div>
 
-              {/* DESKRIPSI (FADE IN + SLIDE UP DENGAN DELAY SANGAT SMOOTH) */}
-              <div className={`absolute bottom-6 left-6 right-6 sm:left-10 sm:right-10 z-10 flex flex-col gap-2 transition-all duration-0 md:duration-1000
-                ${isMobileActive ? 'opacity-100 translate-y-0 delay-200' : 'opacity-0 translate-y-8 pointer-events-none'}
-                md:group-hover:opacity-100 md:group-hover:translate-y-0 md:group-hover:delay-200 md:opacity-0 md:translate-y-8
-              `}>
-                <p className="text-xs sm:text-sm text-neutral-300 font-light leading-relaxed">
+              {/* DESKRIPSI */}
+              <div className={`absolute bottom-4 left-2 right-2 sm:left-10 sm:right-10 z-10 flex flex-col gap-1 md:gap-2 transition-all duration-300 md:opacity-0 md:translate-y-8 md:group-hover:opacity-100 md:group-hover:translate-y-0 ${isMobileActive ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8 pointer-events-none'}`}>
+                <p className="text-[8px] sm:text-sm text-neutral-300 font-light leading-relaxed hidden sm:block">
                   {drink.description}
                 </p>
-                <span className="text-sm sm:text-base font-extrabold text-[#DC7331] leading-none">
+                <span className="text-[10px] sm:text-base font-extrabold text-[#DC7331] leading-none">
                   {drink.price}
                 </span>
               </div>
 
               {/* Nomor Index */}
-              <div className="absolute top-6 right-6 md:top-8 md:right-8 z-10 pointer-events-none text-xl md:text-2xl font-bold text-white/30 transition-colors duration-0 md:duration-1000 md:group-hover:text-white/60">
+              <div className="absolute top-2 right-2 md:top-8 md:right-8 z-10 pointer-events-none text-xs md:text-2xl font-bold text-white/30 transition-colors duration-300 md:group-hover:text-white/60">
                 {String(idx + 1).padStart(2, "0")}
               </div>
             </div>
@@ -171,33 +135,6 @@ export default function SeriesGallery() {
         })}
       </div>
 
-      {/* --- KURSOR CUSTOM PC (Sembunyi di layar HP) --- */}
-      {cursorIdx !== null && (
-        <motion.div
-          style={{ x: springX, y: springY, translateX: "-50%", translateY: "-110%" }}
-          className="hidden md:flex fixed pointer-events-none z-50 w-72 backdrop-blur-md bg-white/95 border border-neutral-200/60 p-5 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.15)] flex-col gap-3"
-        >
-          <div className="flex justify-between items-center w-full">
-            <span className="text-[9px] font-bold tracking-widest text-neutral-400 uppercase">
-              {drinks[cursorIdx].category}
-            </span>
-            <div className="flex items-center gap-1 bg-neutral-100 text-neutral-800 px-2 py-0.5 rounded-full text-[10px] font-semibold">
-              <span>INFO</span>
-              <ArrowUpRight className="w-2.5 h-2.5" />
-            </div>
-          </div>
-          <h4 className={`text-lg font-bold tracking-tight leading-none ${drinks[cursorIdx].headingColor} transition-colors duration-300`}>
-            {drinks[cursorIdx].name}
-          </h4>
-          <span className="text-base font-extrabold text-neutral-900 leading-none">
-            {drinks[cursorIdx].price}
-          </span>
-          <hr className="border-neutral-100" />
-          <p className="text-xs text-neutral-600 font-light leading-relaxed">
-            {drinks[cursorIdx].description}
-          </p>
-        </motion.div>
-      )}
     </section>
   );
 }

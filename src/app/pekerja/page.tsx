@@ -10,7 +10,8 @@ import {
   bukaShift, 
   catatPenjualanProduk, 
   tutupShift,
-  getActiveShiftForUser
+  getActiveShiftForUser,
+  tambahStokProduk
 } from "@/services/backendService";
 import { supabase } from "@/lib/supabase";
 import { LogOut, Plus, Minus, X, User, Loader2, AlertTriangle, CheckCircle2, Store } from "lucide-react";
@@ -23,14 +24,14 @@ export const locationMap: Record<string, string> = {
   "crew2@seruni.com": "Depan Bintan 21",
   "crew3@seruni.com": "Pemuda (Depan SMA 4)",
   "crew4@seruni.com": "Depan RRI (Imigrasi)",
-  "crew5@seruni.com": "Taman Bincen",
+  "crew5@seruni.com": "Ganet",
   
   // --- SHIFT MALAM ---
   "crew6@seruni.com": "Depan Gonggong",
   "crew7@seruni.com": "Depan Gedung Daerah",
-  "crew8@seruni.com": "Bazar TPL 1",
+  "crew8@seruni.com": "Daerah Tugu Sirih",
   "crew9@seruni.com": "Bazar TPL 2",
-  "crew10@seruni.com": "Taman Bincen",
+  "crew10@seruni.com": "Ganet",
 
   // --- ADMIN ---
   "admin@seruni.com": "Seruni Bintan Centre"
@@ -58,6 +59,7 @@ export default function WorkerDashboard() {
 
   // States UI Konfirmasi (Pop-up)
   const [confirmSale, setConfirmSale] = useState<{ isOpen: boolean; productId: number | null; productName: string }>({ isOpen: false, productId: null, productName: "" });
+  const [restockModal, setRestockModal] = useState<{ isOpen: boolean; productId: number | null; productName: string; addedAmount: number }>({ isOpen: false, productId: null, productName: "", addedAmount: 1 });
   const [confirmClose, setConfirmClose] = useState(false);
   const [confirmOpenModal, setConfirmOpenModal] = useState(false);
   const [successOpenModal, setSuccessOpenModal] = useState(false);
@@ -174,12 +176,43 @@ export default function WorkerDashboard() {
     }
   };
 
+  // Fungsi Tambah Stok (Dijalankan dari Modal Restock)
+  const executeRestock = async () => {
+    if (!activeShift || !restockModal.productId || restockModal.addedAmount <= 0) return;
+    try {
+      setLoading(true);
+      await tambahStokProduk(activeShift.id, restockModal.productId, restockModal.addedAmount);
+      const inv = await getLiveStockByOutlet(selectedOutlet);
+      setLiveInventory(inv);
+      setRestockModal({ isOpen: false, productId: null, productName: "", addedAmount: 1 });
+    } catch (err: any) {
+      alert("Gagal menambahkan stok: " + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ================= HITUNG RINGKASAN SHIFT =================
+  const getPrice = (productId: any) => {
+    const p = products.find(prod => String(prod.id) === String(productId));
+    if (!p) return 0;
+    return typeof p.price === 'number' ? p.price : parseInt(String(p.price).replace(/\D/g, '')) || 0;
+  };
+
+  const totalOmset = liveInventory.reduce((sum, item) => sum + ((item.terjual || 0) * getPrice(item.product_id)), 0);
+  const totalCupTerjual = liveInventory.reduce((sum, item) => sum + (item.terjual || 0), 0);
+  const totalSisaStok = liveInventory.reduce((sum, item) => sum + (item.sisa || 0), 0);
+
+  const formatRupiah = (num: number) => {
+    return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(num);
+  };
+
   // Fungsi Tutup Shift (Dijalankan dari Modal)
   const executeTutupShift = async () => {
     if (!activeShift) return;
     try {
       setLoading(true);
-      await tutupShift(activeShift.id, 0);
+      await tutupShift(activeShift.id, totalOmset, liveInventory);
       setActiveShift(null);
       setLiveInventory([]);
       setConfirmClose(false);
@@ -323,9 +356,18 @@ export default function WorkerDashboard() {
                             <button type="button" onClick={() => decrementStock(p.id)} className="w-8 h-8 rounded-xl bg-[#1A1A1A] border border-neutral-800 flex items-center justify-center text-neutral-400 active:bg-neutral-800">
                               <Minus className="w-3 h-3" />
                             </button>
-                            <span className="w-6 text-center text-sm font-black text-white">
-                              {stocks.find(s => s.productId === p.id)?.stock}
-                            </span>
+                            <input 
+                              type="number"
+                              min="0"
+                              value={String(stocks.find(s => s.productId === p.id)?.stock || 0)}
+                              onChange={(e) => {
+                                // Hapus angka 0 di depan agar tidak menumpuk jadi "034"
+                                const rawValue = e.target.value.replace(/^0+/, '');
+                                const val = parseInt(rawValue);
+                                setStocks(prev => prev.map(s => s.productId === p.id ? { ...s, stock: isNaN(val) ? 0 : Math.max(0, val) } : s));
+                              }}
+                              className="w-8 p-0 m-0 text-center text-sm font-black text-white bg-transparent outline-none focus:ring-0 border-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            />
                             <button type="button" onClick={() => incrementStock(p.id)} className="w-8 h-8 rounded-xl bg-[#EA580C]/10 border border-[#EA580C]/20 flex items-center justify-center text-[#EA580C] active:bg-[#EA580C]/20">
                               <Plus className="w-3 h-3" />
                             </button>
@@ -390,14 +432,28 @@ export default function WorkerDashboard() {
                             </div>
                           </div>
                           
-                          <button 
-                            onClick={() => setConfirmSale({ isOpen: true, productId: p.id, productName: p.name })} 
-                            disabled={isEmpty || loading}
-                            className={`w-full flex items-center justify-center gap-2 py-3.5 rounded-xl font-black text-xs tracking-widest uppercase transition-all
-                            ${isEmpty ? 'bg-[#1A1A1A] text-neutral-600 border border-neutral-800' : 'bg-[#EA580C] text-white active:scale-[0.95]'}`}
-                          >
-                            {isEmpty ? <><X className="w-4 h-4"/> SOLD OUT</> : <><Plus className="w-4 h-4"/> JUAL 1 CUP</>}
-                          </button>
+                          {isEmpty ? (
+                            <div className="flex gap-2 w-full mt-1">
+                              <button disabled className="flex-1 flex items-center justify-center gap-1 py-3.5 rounded-xl font-black text-[10px] tracking-widest uppercase bg-[#1A1A1A] text-neutral-600 border border-neutral-800">
+                                <X className="w-3 h-3"/> SOLD OUT
+                              </button>
+                              <button 
+                                onClick={() => setRestockModal({ isOpen: true, productId: p.id, productName: p.name, addedAmount: 1 })}
+                                disabled={loading}
+                                className="flex-1 flex items-center justify-center gap-1 py-3.5 rounded-xl font-black text-[10px] tracking-widest uppercase text-[#EA580C] border border-[#EA580C] hover:bg-[#EA580C]/10 transition-colors active:scale-95"
+                              >
+                                + STOK
+                              </button>
+                            </div>
+                          ) : (
+                            <button 
+                              onClick={() => setConfirmSale({ isOpen: true, productId: p.id, productName: p.name })} 
+                              disabled={loading}
+                              className="w-full flex items-center justify-center gap-2 py-3.5 mt-1 rounded-xl font-black text-xs tracking-widest uppercase transition-all bg-[#EA580C] text-white active:scale-[0.95]"
+                            >
+                              <Plus className="w-4 h-4"/> JUAL 1 CUP
+                            </button>
+                          )}
                         </div>
                      </div>
                    )
@@ -430,6 +486,50 @@ export default function WorkerDashboard() {
         )}
       </AnimatePresence>
 
+      {/* ================= MODAL TAMBAH STOK (RESTOCK) ================= */}
+      <AnimatePresence>
+        {restockModal.isOpen && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-5">
+            <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }} className="bg-[#111111] border border-[#1A1A1A] w-full max-w-sm rounded-3xl p-6 shadow-2xl flex flex-col items-center text-center">
+              <div className="w-16 h-16 rounded-full bg-[#EA580C]/10 flex items-center justify-center mb-4">
+                <Plus className="w-8 h-8 text-[#EA580C]" />
+              </div>
+              <h3 className="text-xl font-black text-white mb-2">Tambah Stok Baru</h3>
+              <p className="text-neutral-400 text-sm mb-6">Berapa banyak stok <strong className="text-white">{restockModal.productName}</strong> yang ingin ditambahkan?</p>
+              
+              <div className="w-full flex items-center justify-center gap-4 mb-8">
+                <button 
+                  onClick={() => setRestockModal(prev => ({ ...prev, addedAmount: Math.max(1, prev.addedAmount - 1) }))}
+                  className="w-12 h-12 rounded-xl bg-[#1A1A1A] border border-neutral-800 flex items-center justify-center text-neutral-400 active:bg-neutral-800"
+                >
+                  <Minus className="w-5 h-5" />
+                </button>
+                <input 
+                  type="number" 
+                  min="1" 
+                  value={restockModal.addedAmount}
+                  onChange={(e) => setRestockModal(prev => ({ ...prev, addedAmount: parseInt(e.target.value) || 1 }))}
+                  className="bg-transparent text-center text-3xl font-black text-white w-20 outline-none"
+                />
+                <button 
+                  onClick={() => setRestockModal(prev => ({ ...prev, addedAmount: prev.addedAmount + 1 }))}
+                  className="w-12 h-12 rounded-xl bg-[#EA580C]/10 border border-[#EA580C]/20 flex items-center justify-center text-[#EA580C] active:bg-[#EA580C]/20"
+                >
+                  <Plus className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="flex w-full gap-3">
+                <button onClick={() => setRestockModal({ isOpen: false, productId: null, productName: "", addedAmount: 1 })} disabled={loading} className="flex-1 py-4 rounded-2xl bg-[#1A1A1A] text-white font-bold text-sm">Batal</button>
+                <button onClick={executeRestock} disabled={loading} className="flex-1 py-4 rounded-2xl bg-[#EA580C] text-white font-bold text-sm flex items-center justify-center gap-2">
+                  {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Simpan Stok"}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* ================= MODAL KONFIRMASI TUTUP SHIFT ================= */}
       <AnimatePresence>
         {confirmClose && (
@@ -439,12 +539,27 @@ export default function WorkerDashboard() {
                 <AlertTriangle className="w-8 h-8 text-red-500" />
               </div>
               <h3 className="text-xl font-black text-white mb-2">Tutup Shift Sekarang?</h3>
-              <p className="text-neutral-400 text-sm mb-8">Data stok akhir akan dikunci dan Anda akan keluar dari mode kasir.</p>
+              <p className="text-neutral-400 text-xs mb-6">Data stok akhir akan dikunci dan Anda akan keluar dari mode kasir.</p>
               
+              <div className="w-full bg-[#1A1A1A] border border-neutral-800 rounded-2xl p-4 mb-8">
+                <div className="flex justify-between items-center pb-3 border-b border-neutral-800">
+                  <span className="text-xs font-bold text-neutral-500">Total Omset</span>
+                  <span className="text-sm font-black text-[#EA580C]">{formatRupiah(totalOmset)}</span>
+                </div>
+                <div className="flex justify-between items-center py-3 border-b border-neutral-800">
+                  <span className="text-xs font-bold text-neutral-500">Cup Terjual</span>
+                  <span className="text-sm font-black text-[#10B981]">{totalCupTerjual} Cup</span>
+                </div>
+                <div className="flex justify-between items-center pt-3">
+                  <span className="text-xs font-bold text-neutral-500">Sisa Stok Fisik</span>
+                  <span className="text-sm font-black text-red-500">{totalSisaStok} Item</span>
+                </div>
+              </div>
+
               <div className="flex w-full gap-3">
-                <button onClick={() => setConfirmClose(false)} disabled={loading} className="flex-1 py-4 rounded-2xl bg-[#1A1A1A] text-white font-bold text-sm">Batal</button>
-                <button onClick={executeTutupShift} disabled={loading} className="flex-1 py-4 rounded-2xl bg-red-500 text-white font-bold text-sm flex items-center justify-center gap-2">
-                  {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Tutup Shift"}
+                <button onClick={() => setConfirmClose(false)} disabled={loading} className="flex-1 py-4 rounded-2xl bg-[#1A1A1A] text-white font-bold text-sm hover:bg-neutral-800 transition-colors">Batal</button>
+                <button onClick={executeTutupShift} disabled={loading} className="flex-1 py-4 rounded-2xl bg-red-500 text-white font-bold text-sm flex items-center justify-center gap-2 hover:bg-red-600 transition-colors">
+                  {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Konfirmasi Tutup"}
                 </button>
               </div>
             </motion.div>

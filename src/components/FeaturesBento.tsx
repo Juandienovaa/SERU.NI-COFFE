@@ -19,9 +19,9 @@ export default function FeaturesBento() {
               THE SERU.NI EXPERIENCE
             </span>
           </div>
-          <h2 className="text-4xl md:text-5xl lg:text-6xl font-extrabold tracking-tighter-custom leading-[1.1] text-neutral-950 flex flex-wrap gap-x-3 gap-y-1">
-            #NGOPI ASIK <br className="hidden md:block"/>
-            <span className="text-[#DC7331]">DENGAN SERU.NI</span>
+          <h2 className="text-5xl md:text-6xl font-extrabold tracking-tighter-custom leading-[1.1] text-neutral-950 flex flex-col gap-y-1">
+            <span>Ngopi</span>
+            <span className="text-[#EA580C]">SERU-seruan disiNI</span>
           </h2>
           <p className="text-sm sm:text-base text-neutral-500 font-light max-w-xl md:max-w-lg leading-relaxed mt-2">
             Dari biji kopi premium hingga kemasan ramah lingkungan, setiap detail seru.ni dipikirkan secara matang untuk kepuasan Anda. Didesain untuk pengalaman seduh terbaik.
@@ -85,10 +85,10 @@ export default function FeaturesBento() {
             transition={{ duration: 0.6 }}
             className="md:col-span-2 relative rounded-3xl overflow-hidden border border-neutral-100 bg-neutral-50 p-8 flex flex-col justify-between group shadow-sm hover:shadow-md transition-all duration-300"
           >
-            <div className="absolute inset-0 z-0 opacity-45 group-hover:scale-105 group-hover:opacity-55 transition-all duration-700">
+            <div className="absolute inset-0 z-0 opacity-95 group-hover:scale-105 group-hover:opacity-100 transition-all duration-700">
               <Image src="/images/ramdani.jpeg" alt="Seni di Setiap Seduhan" fill className="object-cover" sizes="(max-width: 768px) 100vw, 66vw" />
             </div>
-            <div className="absolute inset-0 bg-gradient-to-t from-neutral-50 via-neutral-50/50 to-transparent z-10" />
+            <div className="absolute inset-0 bg-gradient-to-t from-neutral-50/90 via-neutral-50/20 to-transparent z-10" />
             <div className="relative z-20 flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-white border border-neutral-200/50 flex items-center justify-center shadow-sm">
                 <Coffee className="w-5 h-5 text-accent-dark" />
@@ -109,10 +109,10 @@ export default function FeaturesBento() {
             transition={{ duration: 0.6, delay: 0.15 }}
             className="md:row-span-2 relative rounded-3xl overflow-hidden border border-neutral-100 bg-neutral-900 p-8 flex flex-col justify-between group shadow-sm text-white"
           >
-            <div className="absolute inset-0 z-0 opacity-40 group-hover:scale-105 group-hover:opacity-50 transition-all duration-700">
+            <div className="absolute inset-0 z-0 opacity-80 group-hover:scale-105 group-hover:opacity-100 transition-all duration-700">
               <Image src="/images/bento_mobile_cart.png" alt="Armada Gerobak Keliling" fill className="object-cover" sizes="(max-width: 768px) 100vw, 33vw" />
             </div>
-            <div className="absolute inset-0 bg-gradient-to-t from-neutral-950 via-neutral-950/60 to-transparent z-10" />
+            <div className="absolute inset-0 bg-gradient-to-t from-neutral-950/90 via-neutral-950/40 to-transparent z-10" />
             <div className="relative z-20 flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-neutral-800 border border-neutral-700 flex items-center justify-center shadow-sm">
                 <Truck className="w-5 h-5 text-[#DC7331]" />
@@ -133,10 +133,10 @@ export default function FeaturesBento() {
             transition={{ duration: 0.6, delay: 0.1 }}
             className="relative rounded-3xl overflow-hidden border border-neutral-100 bg-neutral-50 p-8 flex flex-col justify-between group shadow-sm hover:shadow-md transition-all duration-300"
           >
-            <div className="absolute inset-0 z-0 opacity-45 group-hover:scale-105 group-hover:opacity-55 transition-all duration-700">
+            <div className="absolute inset-0 z-0 opacity-95 group-hover:scale-105 group-hover:opacity-100 transition-all duration-700">
               <Image src="/images/mesin-kopi.jpg" alt="Pembangkit Energi Otentik" fill className="object-cover" sizes="(max-width: 768px) 100vw, 33vw" />
             </div>
-            <div className="absolute inset-0 bg-gradient-to-t from-neutral-50 via-neutral-50/50 to-transparent z-10" />
+            <div className="absolute inset-0 bg-gradient-to-t from-neutral-50/90 via-neutral-50/20 to-transparent z-10" />
             <div className="relative z-20 flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-white border border-neutral-200/50 flex items-center justify-center shadow-sm">
                 <Sparkles className="w-5 h-5 text-accent-dark" />
@@ -157,10 +157,10 @@ export default function FeaturesBento() {
             transition={{ duration: 0.6, delay: 0.2 }}
             className="relative rounded-3xl overflow-hidden border border-neutral-100 bg-neutral-50 p-8 flex flex-col justify-between group shadow-sm hover:shadow-md transition-all duration-300"
           >
-            <div className="absolute inset-0 z-0 opacity-40 group-hover:scale-105 group-hover:opacity-50 transition-all duration-700">
+            <div className="absolute inset-0 z-0 opacity-95 group-hover:scale-105 group-hover:opacity-100 transition-all duration-700">
               <Image src="/images/bento_coffee_cup.png" alt="Kemasan Premium" fill className="object-cover" sizes="(max-width: 768px) 100vw, 66vw" />
             </div>
-            <div className="absolute inset-0 bg-gradient-to-t from-neutral-50 via-neutral-50/50 to-transparent z-10" />
+            <div className="absolute inset-0 bg-gradient-to-t from-neutral-50/90 via-neutral-50/20 to-transparent z-10" />
             <div className="relative z-20 flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-white border border-neutral-200/50 flex items-center justify-center shadow-sm">
                 <ShieldCheck className="w-5 h-5 text-accent-dark" />
