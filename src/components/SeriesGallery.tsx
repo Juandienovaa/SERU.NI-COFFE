@@ -118,7 +118,7 @@ export default function SeriesGallery() {
 
               {/* DESKRIPSI */}
               <div className={`absolute bottom-4 left-2 right-2 sm:left-10 sm:right-10 z-10 flex flex-col gap-1 md:gap-2 transition-all duration-300 md:opacity-0 md:translate-y-8 md:group-hover:opacity-100 md:group-hover:translate-y-0 ${isMobileActive ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8 pointer-events-none'}`}>
-                <p className="text-[8px] sm:text-sm text-neutral-300 font-light leading-relaxed hidden sm:block">
+                <p className="text-xs md:text-sm text-neutral-300 font-light leading-relaxed line-clamp-2 md:line-clamp-none">
                   {drink.description}
                 </p>
                 <span className="text-[10px] sm:text-base font-extrabold text-[#DC7331] leading-none">

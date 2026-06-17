@@ -180,7 +180,7 @@ export default function Navbar() {
                     >
                       <div className="flex items-center gap-3"><Phone className="w-4 h-4 text-neutral-500" /><span>+62 831-2552-5115</span></div>
                       <div className="flex items-center gap-3"><Mail className="w-4 h-4 text-neutral-500" /><span>halo@seru.ni</span></div>
-                      <div className="flex items-center gap-3"><MapPin className="w-4 h-4 text-neutral-500" /><span>Jl. Yos Sudarso, Jakarta Utara</span></div>
+                      <div className="flex items-center gap-3"><MapPin className="w-4 h-4 text-neutral-500" /><span>Jl. Yos Sudarso, Tanjungpinang Bar., Kec. Tanjungpinang Bar., Kota Tanjung Pinang, Kepulauan Riau</span></div>
                     </motion.div>
                   </div>
                 </div>

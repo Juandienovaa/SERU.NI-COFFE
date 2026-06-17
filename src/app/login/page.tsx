@@ -247,12 +247,6 @@ export default function LoginPage() {
               </div>
             </div>
 
-            {/* Lupa Kata Sandi Link */}
-            <div className="flex justify-end mt-1">
-              <a href="#" className="text-xs font-semibold text-neutral-500 hover:text-[#EA580C] transition-colors">
-                Lupa Kata Sandi?
-              </a>
-            </div>
 
             {/* Tombol Login */}
             <button 

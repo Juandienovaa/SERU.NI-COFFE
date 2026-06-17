@@ -422,9 +422,19 @@ export default function WorkerDashboard() {
                           <h3 className={`font-black text-lg leading-tight mb-2 ${isEmpty ? 'text-neutral-500' : 'text-white'}`}>{p.name}</h3>
                           
                           <div className="flex items-center gap-3 mt-1 mb-4">
-                            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border ${isEmpty ? 'bg-red-500/5 border-red-500/10' : 'bg-[#EA580C]/5 border-[#EA580C]/10'}`}>
-                              <span className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider">Sisa</span>
-                              <span className={`text-base font-black ${isEmpty ? 'text-red-500' : 'text-[#EA580C]'}`}>{currentStock}</span>
+                            <div className="flex items-center gap-2">
+                              <div className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border ${isEmpty ? 'bg-red-500/5 border-red-500/10' : 'bg-[#EA580C]/5 border-[#EA580C]/10'}`}>
+                                <span className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider">Sisa</span>
+                                <span className={`text-base font-black ${isEmpty ? 'text-red-500' : 'text-[#EA580C]'}`}>{currentStock}</span>
+                              </div>
+                              <button
+                                onClick={() => setRestockModal({ isOpen: true, productId: p.id, productName: p.name, addedAmount: 1 })}
+                                disabled={loading}
+                                className="w-8 h-8 flex items-center justify-center rounded-xl border border-neutral-700 bg-transparent text-neutral-400 hover:border-neutral-500 hover:text-white transition-all duration-200 active:scale-95 z-20 pointer-events-auto"
+                                title="Tambah Stok"
+                              >
+                                <Plus className="w-4 h-4" />
+                              </button>
                             </div>
                             <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[#10B981]/5 border border-[#10B981]/10">
                               <span className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider">Terjual</span>

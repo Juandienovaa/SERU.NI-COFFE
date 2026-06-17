@@ -83,21 +83,21 @@ export default function FeaturesBento() {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, amount: 0.1, margin: "0px 0px -15% 0px" }}
             transition={{ duration: 0.6 }}
-            className="md:col-span-2 relative rounded-3xl overflow-hidden border border-neutral-100 bg-neutral-50 p-8 flex flex-col justify-between group shadow-sm hover:shadow-md transition-all duration-300"
+            className="md:col-span-2 relative rounded-3xl overflow-hidden border border-neutral-100 bg-neutral-900 p-8 flex flex-col justify-between group shadow-sm hover:shadow-md transition-all duration-300 text-white"
           >
-            <div className="absolute inset-0 z-0 opacity-95 group-hover:scale-105 group-hover:opacity-100 transition-all duration-700">
+            <div className="absolute inset-0 z-0 opacity-80 group-hover:scale-105 group-hover:opacity-100 transition-all duration-700">
               <Image src="/images/ramdani.jpeg" alt="Seni di Setiap Seduhan" fill className="object-cover" sizes="(max-width: 768px) 100vw, 66vw" />
             </div>
-            <div className="absolute inset-0 bg-gradient-to-t from-neutral-50/90 via-neutral-50/20 to-transparent z-10" />
+            <div className="absolute inset-0 bg-gradient-to-t from-neutral-950/90 via-neutral-950/40 to-transparent z-10" />
             <div className="relative z-20 flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-white border border-neutral-200/50 flex items-center justify-center shadow-sm">
+              <div className="w-10 h-10 rounded-full bg-neutral-800 border border-neutral-700 flex items-center justify-center shadow-sm">
                 <Coffee className="w-5 h-5 text-accent-dark" />
               </div>
-              <span className="text-xs font-bold tracking-widest text-neutral-800 uppercase">Biji Kopi Pilihan</span>
+              <span className="text-xs font-bold tracking-widest text-neutral-300 uppercase">Biji Kopi Pilihan</span>
             </div>
             <div className="relative z-20 max-w-md mt-auto">
-              <h3 className="text-2xl font-bold tracking-tight text-neutral-900 mb-2">Seni di Setiap Seduhan</h3>
-              <p className="text-sm text-neutral-600 font-light leading-relaxed">Saksikan ketelitian barista kami menyiapkan setiap seruput Matcha premium Anda. Dari Kopi Susu hingga racikan spesial, dedikasi kami memastikan kesempurnaan di setiap gelas Seru.ni.</p>
+              <h3 className="text-2xl font-bold tracking-tight text-white mb-2 leading-tight">Seni di Setiap Seduhan</h3>
+              <p className="text-sm text-neutral-300 font-light leading-relaxed">Saksikan ketelitian barista kami menyiapkan setiap seruput Matcha premium Anda. Dari Kopi Susu hingga racikan spesial, dedikasi kami memastikan kesempurnaan di setiap gelas Seru.ni.</p>
             </div>
           </motion.div>
 
@@ -110,7 +110,7 @@ export default function FeaturesBento() {
             className="md:row-span-2 relative rounded-3xl overflow-hidden border border-neutral-100 bg-neutral-900 p-8 flex flex-col justify-between group shadow-sm text-white"
           >
             <div className="absolute inset-0 z-0 opacity-80 group-hover:scale-105 group-hover:opacity-100 transition-all duration-700">
-              <Image src="/images/bento_mobile_cart.png" alt="Armada Gerobak Keliling" fill className="object-cover" sizes="(max-width: 768px) 100vw, 33vw" />
+              <Image src="/images/armada.jpeg" alt="Armada Gerobak Keliling" fill className="object-cover" sizes="(max-width: 768px) 100vw, 33vw" />
             </div>
             <div className="absolute inset-0 bg-gradient-to-t from-neutral-950/90 via-neutral-950/40 to-transparent z-10" />
             <div className="relative z-20 flex items-center gap-3">
@@ -131,45 +131,45 @@ export default function FeaturesBento() {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, amount: 0.1, margin: "0px 0px -15% 0px" }}
             transition={{ duration: 0.6, delay: 0.1 }}
-            className="relative rounded-3xl overflow-hidden border border-neutral-100 bg-neutral-50 p-8 flex flex-col justify-between group shadow-sm hover:shadow-md transition-all duration-300"
+            className="relative rounded-3xl overflow-hidden border border-neutral-100 bg-neutral-900 p-8 flex flex-col justify-between group shadow-sm hover:shadow-md transition-all duration-300 text-white"
           >
-            <div className="absolute inset-0 z-0 opacity-95 group-hover:scale-105 group-hover:opacity-100 transition-all duration-700">
+            <div className="absolute inset-0 z-0 opacity-80 group-hover:scale-105 group-hover:opacity-100 transition-all duration-700">
               <Image src="/images/mesin-kopi.jpg" alt="Pembangkit Energi Otentik" fill className="object-cover" sizes="(max-width: 768px) 100vw, 33vw" />
             </div>
-            <div className="absolute inset-0 bg-gradient-to-t from-neutral-50/90 via-neutral-50/20 to-transparent z-10" />
+            <div className="absolute inset-0 bg-gradient-to-t from-neutral-950/90 via-neutral-950/40 to-transparent z-10" />
             <div className="relative z-20 flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-white border border-neutral-200/50 flex items-center justify-center shadow-sm">
+              <div className="w-10 h-10 rounded-full bg-neutral-800 border border-neutral-700 flex items-center justify-center shadow-sm">
                 <Sparkles className="w-5 h-5 text-accent-dark" />
               </div>
-              <span className="text-xs font-bold tracking-widest text-neutral-800 uppercase">Proses Seduh</span>
+              <span className="text-xs font-bold tracking-widest text-neutral-300 uppercase">Proses Seduh</span>
             </div>
             <div className="relative z-20 mt-auto">
-              <h3 className="text-xl font-bold tracking-tight text-neutral-900 mb-1">Pembangkit Energi Otentik</h3>
-              <p className="text-xs text-neutral-600 font-light leading-relaxed">Jantung rasa Seru.ni. Kami menggunakan mesin espresso komersial performa tinggi untuk mengekstraksi rasa kaya dan konsisten dari biji kopi premium kami setiap harinya.</p>
+              <h3 className="text-xl font-bold tracking-tight text-white mb-1 leading-tight">Pembangkit Energi Otentik</h3>
+              <p className="text-sm text-neutral-300 font-light leading-relaxed">Jantung rasa Seru.ni. Kami menggunakan mesin espresso komersial performa tinggi untuk mengekstraksi rasa kaya dan konsisten dari biji kopi premium kami setiap harinya.</p>
             </div>
           </motion.div>
 
-          {/* Card 4: Eco cup */}
+          {/* Card 4: Merchandise */}
           <motion.div
             initial={{ opacity: 0, y: 30 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, amount: 0.1, margin: "0px 0px -15% 0px" }}
             transition={{ duration: 0.6, delay: 0.2 }}
-            className="relative rounded-3xl overflow-hidden border border-neutral-100 bg-neutral-50 p-8 flex flex-col justify-between group shadow-sm hover:shadow-md transition-all duration-300"
+            className="relative rounded-3xl overflow-hidden border border-neutral-100 bg-neutral-900 p-8 flex flex-col justify-between group shadow-sm hover:shadow-md transition-all duration-300 text-white"
           >
-            <div className="absolute inset-0 z-0 opacity-95 group-hover:scale-105 group-hover:opacity-100 transition-all duration-700">
-              <Image src="/images/bento_coffee_cup.png" alt="Kemasan Premium" fill className="object-cover" sizes="(max-width: 768px) 100vw, 66vw" />
+            <div className="absolute inset-0 z-0 opacity-80 group-hover:scale-105 group-hover:opacity-100 transition-all duration-700">
+              <Image src="/images/merche-seruni.jpeg" alt="Merchandise Seru.ni" fill className="object-cover" sizes="(max-width: 768px) 100vw, 66vw" />
             </div>
-            <div className="absolute inset-0 bg-gradient-to-t from-neutral-50/90 via-neutral-50/20 to-transparent z-10" />
+            <div className="absolute inset-0 bg-gradient-to-t from-neutral-950/90 via-neutral-950/40 to-transparent z-10" />
             <div className="relative z-20 flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-white border border-neutral-200/50 flex items-center justify-center shadow-sm">
+              <div className="w-10 h-10 rounded-full bg-neutral-800 border border-neutral-700 flex items-center justify-center shadow-sm">
                 <ShieldCheck className="w-5 h-5 text-accent-dark" />
               </div>
-              <span className="text-xs font-bold tracking-widest text-neutral-800 uppercase">Kemasan Hijau</span>
+              <span className="text-xs font-bold tracking-widest text-neutral-300 uppercase">Merchandise</span>
             </div>
             <div className="relative z-20 max-w-md mt-auto">
-              <h3 className="text-2xl font-bold tracking-tight text-neutral-900 mb-2">100% Gelas Kompos & Ramah Lingkungan</h3>
-              <p className="text-sm text-neutral-600 font-light leading-relaxed">Kami sangat peduli pada bumi. Gelas seru.ni menggunakan material biodegradable yang ramah lingkungan dan bersertifikasi compostable.</p>
+              <h3 className="text-2xl font-bold tracking-tight text-white mb-2 leading-tight">Tumbler Eksklusif Seruni Club</h3>
+              <p className="text-sm text-neutral-300 font-light leading-relaxed">Bawa pulang semangat Seruni.ni dengan tumbler eksklusif kami! Desain keren berbalut warna oranye khas Seruni, praktis dibawa nongkrong, dan pastinya bikin kopi Anda tetap nikmat lebih lama.</p>
             </div>
           </motion.div>
 
