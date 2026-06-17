@@ -55,7 +55,8 @@ export async function catatPenjualanProduk(shiftId: string, productId: number, q
   const updatedInventory = currentInventory.map((item: any) => {
     if (item.product_id === productId) {
       const newSold = item.terjual + qtySold;
-      const newSisa = Math.max(0, item.stok_awal - newSold);
+      const totalStok = item.stok_awal + (item.added_stock || 0);
+      const newSisa = Math.max(0, totalStok - newSold);
       return { ...item, terjual: newSold, sisa: newSisa };
     }
     return item;
