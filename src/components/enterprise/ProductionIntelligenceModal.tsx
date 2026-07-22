@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { motion } from "motion/react";
+import { motion, AnimatePresence } from "motion/react";
 import { AppModal } from "@/components/ui/AppModal";
 import { ProductionBatch } from "@/types/productionBatch";
 import { ProductionIntelligenceData } from "@/types/productionIntelligence";
@@ -101,7 +101,6 @@ export const ProductionIntelligenceModal: React.FC<ProductionIntelligenceModalPr
     window.print();
   };
 
-  return (
   const modalTitle = (
     <div className="flex items-center gap-3.5">
       <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-[#F97316] to-orange-600 flex items-center justify-center text-black font-black shadow-lg shadow-[#F97316]/20 shrink-0">
@@ -823,7 +822,6 @@ export const ProductionIntelligenceModal: React.FC<ProductionIntelligenceModalPr
             )}
           </div>
         </div>
-      </div>
     </AppModal>
   );
 };

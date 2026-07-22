@@ -351,7 +351,7 @@ export class FinancialService {
   }
 
   // Backward compatibility placeholders (since we removed settlements table)
-  async updateSettlementStatus() {
+  async updateSettlementStatus(...args: any[]) {
     return true;
   }
 }

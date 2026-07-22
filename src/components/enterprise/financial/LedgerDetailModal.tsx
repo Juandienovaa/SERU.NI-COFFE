@@ -1,6 +1,6 @@
 import React, { useEffect } from "react";
 import { Receipt, CheckCircle2 } from "lucide-react";
-import { LedgerItem } from "./LedgerTable";
+import { OfflineLedgerItem as LedgerItem } from "@/services/financialService";
 import { AppModal } from "@/components/ui/AppModal";
 
 interface LedgerDetailModalProps {
@@ -75,7 +75,7 @@ export const LedgerDetailModal: React.FC<LedgerDetailModalProps> = ({ isOpen, on
               <div className="w-full h-px bg-white/[0.05] my-2" />
               <div className="flex justify-between items-center">
                 <span className="text-sm font-bold text-white">Grand Total</span>
-                <span className="text-lg font-black font-mono text-white">Rp {item.total.toLocaleString("id-ID")}</span>
+                <span className="text-lg font-black font-mono text-white">Rp {(item.cash + item.qris).toLocaleString("id-ID")}</span>
               </div>
             </div>
           </div>

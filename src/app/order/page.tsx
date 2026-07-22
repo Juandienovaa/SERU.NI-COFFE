@@ -86,7 +86,7 @@ export default function CustomerOrderPage() {
   };
 
   const totalQty = cart.reduce((acc, item) => acc + item.qty, 0);
-  const subtotal = cart.reduce((acc, item) => acc + (item.product.price * item.qty), 0);
+  const subtotal = cart.reduce((acc, item) => acc + ((item.product.price || 0) * item.qty), 0);
   const isFreeOngkir = totalQty >= 5;
   const shippingFee = form.orderType === "TAKEAWAY" ? 0 : (isFreeOngkir ? 0 : 10000);
   const grandTotal = subtotal + shippingFee;
@@ -125,8 +125,8 @@ export default function CustomerOrderPage() {
         product_id: item.product.product_id,
         product_name: item.product.product_name,
         qty: item.qty,
-        price: item.product.price,
-        subtotal: item.product.price * item.qty
+        price: item.product.price || 0,
+        subtotal: (item.product.price || 0) * item.qty
       }));
 
       const { error: itemsError } = await supabase.from("online_order_items").insert(orderItems);
@@ -153,8 +153,8 @@ export default function CustomerOrderPage() {
           transaction_id: txMaster.id,
           product_id: item.product.product_id,
           qty: item.qty,
-          price: item.product.price,
-          subtotal: item.product.price * item.qty,
+          price: item.product.price || 0,
+          subtotal: (item.product.price || 0) * item.qty,
           created_at: new Date().toISOString()
         }));
         await supabase.from("transaction_items").insert(txItems);
@@ -222,7 +222,7 @@ export default function CustomerOrderPage() {
                   {/* Info */}
                   <div className="flex-1">
                     <h3 className="font-bold text-white leading-tight">{p.product_name}</h3>
-                    <p className="text-sm font-black text-orange-400 mt-1">{formatRupiah(p.price)}</p>
+                    <p className="text-sm font-black text-orange-400 mt-1">{formatRupiah(p.price || 0)}</p>
                     {isSoldOut && <p className="text-[10px] font-bold text-red-500 uppercase tracking-widest mt-2">Sold Out</p>}
                   </div>
 

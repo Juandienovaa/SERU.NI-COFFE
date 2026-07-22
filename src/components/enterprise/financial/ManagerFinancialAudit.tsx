@@ -6,7 +6,7 @@ import { FinancialToolbar, PeriodType } from "./FinancialToolbar";
 import { LedgerTableOffline, LedgerTableOnline } from "./LedgerTable";
 import { BarChart3, Loader2, Store, Globe, Banknote, Coffee, ShieldCheck, Wallet, Search, Filter, X, FileText, CheckCircle2, History } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
-import { financialService, OfflineLedgerItem, OnlineLedgerItem, FinancialSummaryData, OnlineSummaryData, SettlementDetail } from "@/services/financialService";
+import { financialService, OfflineLedgerItem, OnlineLedgerItem, FinancialSummaryData, OnlineSummaryData } from "@/services/financialService";
 import { supabase } from "@/lib/supabase";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -35,7 +35,7 @@ export const ManagerFinancialAudit = () => {
 
   // Slide Over States
   const [selectedLedger, setSelectedLedger] = useState<OfflineLedgerItem | null>(null);
-  const [settlementDetails, setSettlementDetails] = useState<SettlementDetail | null>(null);
+  const [settlementDetails, setSettlementDetails] = useState<any | null>(null);
   const [isLoadingDetails, setIsLoadingDetails] = useState(false);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
 
@@ -146,7 +146,7 @@ export const ManagerFinancialAudit = () => {
     // Transactions Table
     doc.text("Daftar Transaksi:", 14, 122);
     
-    const tableData = settlementDetails.transactions.map((t, idx) => [
+    const tableData = settlementDetails.transactions.map((t: any, idx: number) => [
       idx + 1,
       t.invoice_number || t.id.substring(0,8),
       new Date(t.created_at).toLocaleTimeString('id-ID'),
@@ -356,9 +356,9 @@ export const ManagerFinancialAudit = () => {
                         <span className="bg-white/10 text-white px-3 py-1 rounded-full text-xs">
                           {selectedLedger.shiftInfo?.shiftType || selectedLedger.shift}
                         </span>
-                        <span>�</span>
+                        <span>•</span>
                         <span>{selectedLedger.date}</span>
-                        <span>�</span>
+                        <span>•</span>
                         <span>Crew: <span className="text-white">{selectedLedger.shiftInfo?.crewName || selectedLedger.crewName}</span></span>
                       </div>
                     </div>
@@ -484,7 +484,7 @@ export const ManagerFinancialAudit = () => {
                                   </td>
                                 </tr>
                               ) : (
-                                settlementDetails?.transactions?.map((t) => (
+                                settlementDetails?.transactions?.map((t: any) => (
                                   <React.Fragment key={t.id}>
                                     <tr className="hover:bg-white/[0.02] transition-colors group cursor-pointer">
                                       <td className="px-6 py-4 whitespace-nowrap font-mono text-neutral-300">
