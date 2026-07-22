@@ -12,6 +12,7 @@ interface ProfileGridProps {
   error?: string | null;
   onSelectUser: (user: UserProfile) => void;
   onRefresh?: () => void;
+  emptyMessage?: string;
 }
 
 export const ProfileGrid: React.FC<ProfileGridProps> = ({
@@ -20,6 +21,7 @@ export const ProfileGrid: React.FC<ProfileGridProps> = ({
   error,
   onSelectUser,
   onRefresh,
+  emptyMessage,
 }) => {
   if (loading) {
     return (
@@ -79,7 +81,7 @@ export const ProfileGrid: React.FC<ProfileGridProps> = ({
         <div>
           <h3 className="font-heading font-bold text-white text-lg mb-1.5">Tidak Ada Profil Crew</h3>
           <p className="text-sm text-neutral-400 font-light leading-relaxed">
-            Belum ada akun crew yang aktif di dalam sistem. Pastikan data crew sudah didaftarkan pada tabel users di Supabase.
+            {emptyMessage || "Belum ada akun crew yang aktif di dalam sistem. Pastikan data crew sudah didaftarkan pada tabel users di Supabase."}
           </p>
         </div>
         {onRefresh && (
