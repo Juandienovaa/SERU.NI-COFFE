@@ -194,7 +194,14 @@ export default function CentralCashierDashboard() {
 
   const completeOnlineOrder = async (orderId: string) => {
     handleStopAudio();
-    // This RPC handles inventory reduction and status update atomically
+    
+    // Explicitly update status via REST API to guarantee Supabase Realtime broadcast
+    await supabase.from("online_orders").update({ 
+      order_status: 'COMPLETED',
+      updated_at: new Date().toISOString()
+    }).eq("id", orderId);
+
+    // This RPC handles inventory reduction safely
     await supabase.rpc('rpc_complete_online_order', { p_order_id: orderId });
     
     // Optimistic Update
