@@ -45,7 +45,7 @@ export default function CustomerOrderPage() {
           getAvailableStockForShift()
         ]);
         
-        if (prodRes.success) setProducts(prodRes.data);
+        if (prodRes.success) setProducts(prodRes.data || []);
         
         const map: Record<number, number> = {};
         stockRes.forEach((s: any) => {
