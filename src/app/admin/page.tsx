@@ -14,6 +14,7 @@ import {
   Star, AlertTriangle, Activity, LogOut, Loader2, ChevronDown, ChevronUp
 } from "lucide-react";
 import CinematicLoader from "@/components/CinematicLoader";
+import { LiveGerobakAudit } from "@/components/enterprise/LiveGerobakAudit";
 
 export default function AdminDashboard() {
   const router = useRouter();
@@ -374,6 +375,9 @@ export default function AdminDashboard() {
                 </div>
               </div>
             </motion.div>
+
+            {/* Realtime WMS Gerobak Audit Component (Supabase WebSocket Listener) */}
+            <LiveGerobakAudit initialOutlets={liveOutlets} className="my-6" />
 
             {/* Live Outlet Monitoring Table */}
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="bg-[#18181B] border border-white/5 rounded-2xl overflow-hidden">

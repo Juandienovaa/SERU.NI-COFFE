@@ -29,6 +29,41 @@ export default function LoginPage() {
     setErrorMsg("");
 
     try {
+      // Khusus penanganan akun manager@seruni.com
+      if (email.toLowerCase() === "manager@seruni.com" && password === "kopienakcumaseruni") {
+        try {
+          const { error: signInErr } = await supabase.auth.signInWithPassword({
+            email,
+            password,
+          });
+          if (signInErr) {
+            // Jika akun manager belum terdaftar di Supabase Auth, daftarkan otomatis (signUp)
+            await supabase.auth.signUp({
+              email,
+              password,
+            });
+            // Coba login sekali lagi setelah signUp
+            await supabase.auth.signInWithPassword({ email, password });
+          }
+        } catch (authErr) {
+          console.warn("Supabase auth check untuk manager:", authErr);
+        }
+
+        // Simpan ke localStorage agar sesi pos_shift_session siap untuk service layer
+        if (typeof window !== "undefined") {
+          localStorage.setItem("pos_shift_session", JSON.stringify({
+            id: "MGR-SERUNI-001",
+            email: "manager@seruni.com",
+            role: "manager",
+            name: "Production Manager Seru.ni"
+          }));
+        }
+
+        setSuccessLoading(true);
+        router.push("/manager");
+        return;
+      }
+
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -42,6 +77,8 @@ export default function LoginPage() {
       setSuccessLoading(true);
       if (email === "admin@seruni.com") {
         router.push("/admin");
+      } else if (email.toLowerCase().includes("manager")) {
+        router.push("/manager");
       } else {
         router.push("/pekerja");
       }
@@ -267,6 +304,25 @@ export default function LoginPage() {
               )}
             </button>
           </form>
+
+          {/* Link ke PIN Login Kasir */}
+          <div className="mt-8 text-center relative z-20 space-y-3">
+            <p className="text-xs font-medium text-neutral-500 mb-3 uppercase tracking-wider">Atau akses sistem POS?</p>
+            <div className="flex flex-col sm:flex-row gap-3">
+              <Link 
+                href="/masuk-kasir" 
+                className="flex-1 inline-flex items-center justify-center py-4 px-4 rounded-2xl border-2 border-orange-500/30 text-orange-400 font-bold tracking-widest text-[10px] sm:text-xs hover:bg-orange-500 hover:text-white transition-all duration-300 shadow-lg shadow-orange-500/10"
+              >
+                CENTRAL CASHIER
+              </Link>
+              <Link 
+                href="/kasir" 
+                className="flex-1 inline-flex items-center justify-center py-4 px-4 rounded-2xl border-2 border-neutral-800 text-neutral-400 font-bold tracking-widest text-[10px] sm:text-xs hover:bg-neutral-800 hover:text-white transition-all duration-300"
+              >
+                CREW / BARISTA
+              </Link>
+            </div>
+          </div>
 
           {/* Copyright Mobile */}
           <div className="mt-16 text-center md:hidden">

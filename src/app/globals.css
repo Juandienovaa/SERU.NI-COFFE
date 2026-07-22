@@ -1,34 +1,51 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #111111;
-  --accent: #d4a373;
-  --accent-dark: #a98467;
-  --accent-light: #fefae0;
+  --background: #09090b;
+  --foreground: #ffffff;
+  --surface-secondary: #111113;
+  --surface-card: #18181b;
+  --border-subtle: rgba(255, 255, 255, 0.06);
+  --primary-accent: #f97316;
+  --success: #10b981;
+  --warning: #f59e0b;
+  --danger: #f43f5e;
+  --info: #0ea5e9;
 }
 
 @theme {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --color-accent: var(--accent);
-  --color-accent-dark: var(--accent-dark);
-  --color-accent-light: var(--accent-light);
+  --color-surface-secondary: var(--surface-secondary);
+  --color-surface-card: var(--surface-card);
+  --color-border-subtle: var(--border-subtle);
+  --color-primary-accent: var(--primary-accent);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+  --color-info: var(--info);
   --font-sans: var(--font-instrument-sans), sans-serif;
   --animate-marquee: marquee 30s linear infinite;
+  --animate-shimmer: shimmer 2s linear infinite;
   
   @keyframes marquee {
     0% { transform: translateX(0%); }
     100% { transform: translateX(-50%); }
   }
+
+  @keyframes shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+  }
 }
 
 html,
 body {
-  background-color: #ffffff;
-  color: #111111;
-  font-family: var(--font-instrument-sans), sans-serif;
+  background-color: #09090b;
+  color: #ffffff;
+  font-family: var(--font-instrument-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   width: 100%;
+  color-scheme: dark;
 }
 
 /* Lenis smooth scrolling integration */
@@ -51,26 +68,38 @@ html.lenis body {
   pointer-events: none;
 }
 
-/* Hide default scrollbars for preloader and clean look */
+/* Custom Shimmer Skeleton utility */
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.03) 0%,
+    rgba(255, 255, 255, 0.08) 50%,
+    rgba(255, 255, 255, 0.03) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.8s infinite;
+}
+
+/* Hide default scrollbars for preloader and clean dark look */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: transparent;
+  background: #09090b;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.1);
-  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 9999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 0, 0, 0.25);
+  background: rgba(255, 255, 255, 0.25);
 }
 
-/* Custom text tracking-tight utilities */
+/* Custom text tracking utilities */
 .tracking-tight-custom {
   letter-spacing: -0.03em;
 }

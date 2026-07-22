@@ -1,5 +1,8 @@
 "use client";
 
+// Pastikan halaman ini TIDAK PERNAH di-cache oleh Next.js 15
+export const dynamic = 'force-dynamic';
+
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "motion/react";
@@ -7,15 +10,22 @@ import { products } from "@/app/produk/data";
 import { 
   getOutlets, 
   getLiveStockByOutlet, 
+  getLiveStockByShiftId,
   bukaShift, 
   catatPenjualanProduk, 
   tutupShift,
   getActiveShiftForUser,
-  tambahStokProduk
+  transferAdditionalStock,
+  getMasterInventoryStock,
+  getAvailableStockForShift
 } from "@/services/backendService";
 import { supabase } from "@/lib/supabase";
 import { LogOut, Plus, Minus, X, User, Loader2, AlertTriangle, CheckCircle2, Store } from "lucide-react";
 import CinematicLoader from "@/components/CinematicLoader";
+import { saveActiveShift, clearActiveShift, getActiveShift } from "@/services/shiftStorageService";
+import { checkActiveShiftInSupabase, syncRecordToStorageCache } from "@/services/shiftAuthService";
+import CloseShiftModal from "@/components/pos/close-shift/CloseShiftModal";
+import { InventoryItemSnapshot } from "@/types/shift";
 
 // KAMUS LOKASI
 export const locationMap: Record<string, string> = {
@@ -44,9 +54,9 @@ export default function WorkerDashboard() {
   // States Utama
   const [outlets, setOutlets] = useState<any[]>([]);
   const [selectedOutlet, setSelectedOutlet] = useState<string>("");
-  const [userEmail, setUserEmail] = useState<string>("");
   const [workerName, setWorkerName] = useState<string>("");
   const [shiftType, setShiftType] = useState<"pagi" | "malam">("pagi");
+  const [availableStocks, setAvailableStocks] = useState<any[]>([]);
   
   const [stocks, setStocks] = useState<{ productId: number; stock: number }[]>(
     products.map(p => ({ productId: p.id, stock: 0 }))
@@ -58,54 +68,80 @@ export default function WorkerDashboard() {
   const [errorMsg, setErrorMsg] = useState("");
 
   // States UI Konfirmasi (Pop-up)
-  const [confirmSale, setConfirmSale] = useState<{ isOpen: boolean; productId: number | null; productName: string }>({ isOpen: false, productId: null, productName: "" });
-  const [restockModal, setRestockModal] = useState<{ isOpen: boolean; productId: number | null; productName: string; addedAmount: number }>({ isOpen: false, productId: null, productName: "", addedAmount: 1 });
+  const [confirmSale, setConfirmSale] = useState<{ isOpen: boolean; productId: number | null; productName: string; paymentMethod: 'CASH' | 'QRIS' }>({ isOpen: false, productId: null, productName: "", paymentMethod: 'CASH' });
+  const [restockModal, setRestockModal] = useState<{ isOpen: boolean; productId: number | null; productName: string; addedAmount: number; masterStock: number; currentShiftStock: number }>({ isOpen: false, productId: null, productName: "", addedAmount: 1, masterStock: 0, currentShiftStock: 0 });
   const [confirmClose, setConfirmClose] = useState(false);
   const [confirmOpenModal, setConfirmOpenModal] = useState(false);
   const [successOpenModal, setSuccessOpenModal] = useState(false);
   const [pendingShiftData, setPendingShiftData] = useState<any>(null);
 
-  // Init Auth & Auto-Resume
+  // Init Auth & Auto-Resume (Single Source of Truth + Fast Cache Recovery)
   useEffect(() => {
     let isMounted = true;
     async function init() {
       try {
         setAuthLoading(true);
-        const { data: { session } } = await supabase.auth.getSession();
-        
-        if (!session) {
-          router.push("/login");
+
+        // 1. Cek fast cache lokal terlebih dahulu
+        const fastCache = getActiveShift();
+        const sessionStr = localStorage.getItem("session") || localStorage.getItem("pos_shift_session");
+
+        if (!sessionStr && !fastCache) {
+          router.replace("/kasir");
           return;
         }
 
-        const userId = session.user.id;
-        const email = session.user.email || "";
-        setUserEmail(email);
-        
-        const mappedLocation = locationMap[email];
-        if (mappedLocation) {
-          setSelectedOutlet(mappedLocation);
+        const session = sessionStr ? JSON.parse(sessionStr) : {};
+        const userId = session.id || fastCache?.cashier_id || "mock-123";
+        const crewName = session.nama || session.crewName || fastCache?.cashier_name || "Crew Member";
+        const targetOutlet = session.lokasi || fastCache?.location_name || "";
+
+        if (targetOutlet) setSelectedOutlet(targetOutlet);
+        if (crewName) setWorkerName(crewName);
+
+        // Jika ada fast cache aktif, set terlebih dahulu agar UI tidak berkedip (Instant Resume UX)
+        if (fastCache && fastCache.active_shift_id) {
+          setActiveShift(fastCache);
         }
 
-        const [outletsData, activeUserShift] = await Promise.all([
+        // 2. Verifikasi dengan Supabase sebagai Single Source of Truth
+        const [outletsData, activeUserShift, invData] = await Promise.all([
           getOutlets().catch(() => []),
-          getActiveShiftForUser(userId).catch(() => null)
+          checkActiveShiftInSupabase(userId, crewName).catch(() => null),
+          getAvailableStockForShift().catch(() => [])
         ]);
 
         if (!isMounted) return;
         setOutlets(outletsData);
+        setAvailableStocks(invData);
 
-        if (activeUserShift) {
-          setSelectedOutlet(activeUserShift.outlet_id);
-          setWorkerName(activeUserShift.crew_name);
+        if (activeUserShift && activeUserShift.id) {
+          // --- SHIFT TERBUKA DITEMUKAN DI SUPABASE ---
+          const syncedCache = syncRecordToStorageCache(activeUserShift, userId, crewName);
+          setSelectedOutlet(activeUserShift.outlet_id || targetOutlet);
+          setWorkerName(activeUserShift.crew_name || crewName);
           setActiveShift(activeUserShift);
-          
-          const inv = await getLiveStockByOutlet(activeUserShift.outlet_id);
+
+          let inv = await getLiveStockByShiftId(activeUserShift.id);
+          if (!inv || inv.length === 0) {
+            inv = activeUserShift.inventory_data || [];
+          }
           if (isMounted) setLiveInventory(inv);
+        } else {
+          // --- TIDAK ADA SHIFT TERBUKA DI SUPABASE ---
+          // Jika di localStorage masih ada cache lama padahal di DB sudah ditutup, bersihkan cache stale
+          if (fastCache) {
+            console.warn("[WorkerDashboard] Stale active shift terdeteksi di localStorage. Membersihkan karena DB menunjukkan CLOSED.");
+            clearActiveShift();
+          }
+          setActiveShift(null);
         }
 
       } catch (err: any) {
-        console.error("Init failed:", err);
+        console.error("Init failed detail:", JSON.stringify(err, null, 2));
+        console.error("Error message:", err?.message || err);
+        // MATIKAN SEMENTARA agar tidak terjadi infinite loop
+        // router.replace("/kasir");
       } finally {
         if (isMounted) setAuthLoading(false);
       }
@@ -114,9 +150,47 @@ export default function WorkerDashboard() {
     return () => { isMounted = false; };
   }, [router]);
 
+  // ================= SUPABASE REALTIME SUBSCRIPTION =================
+  // Subscribe ke tabel shift_inventory agar perubahan stok langsung terefleksi di UI
+  useEffect(() => {
+    if (!activeShift?.id) return;
+
+    const channel = supabase.channel(`shift_inventory_${activeShift.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'shift_inventory',
+          filter: `shift_id=eq.${activeShift.id}`
+        },
+        async (payload) => {
+          console.log("Realtime shift_inventory payload received!", payload);
+          // Refetch fresh inventory data directly
+          let freshInv = await getLiveStockByShiftId(activeShift.id);
+          if (!freshInv || freshInv.length === 0) {
+            freshInv = activeShift.inventory_data || [];
+          }
+          setLiveInventory(freshInv);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [activeShift?.id, selectedOutlet]);
+
   // Handler Stok Awal
   const incrementStock = (productId: number) => setStocks(prev => prev.map(s => s.productId === productId ? { ...s, stock: s.stock + 1 } : s));
   const decrementStock = (productId: number) => setStocks(prev => prev.map(s => (s.productId === productId && s.stock > 0) ? { ...s, stock: s.stock - 1 } : s));
+  const handleStockChange = (productId: number, value: string, maxStock: number) => {
+    let num = parseInt(value, 10);
+    if (isNaN(num)) num = 0;
+    if (num < 0) num = 0;
+    if (num > maxStock) num = maxStock;
+    setStocks(prev => prev.map(s => s.productId === productId ? { ...s, stock: num } : s));
+  };
 
   // Fungsi Buka Shift (Fase Validasi)
   const handleBukaShift = async (e: React.FormEvent) => {
@@ -132,12 +206,47 @@ export default function WorkerDashboard() {
   const executeBukaShift = async () => {
     try {
       setLoading(true); setErrorMsg("");
+      
+      let userId: string | null = null;
+      if (typeof window !== "undefined") {
+        const sessionStr = localStorage.getItem("session") || localStorage.getItem("pos_shift_session");
+        if (sessionStr) {
+          try {
+            const parsed = JSON.parse(sessionStr);
+            userId = parsed.id || parsed.cashier_id;
+          } catch (e) {}
+        }
+      }
+
+      if (!userId) {
+        alert("Sesi login tidak valid. Silakan login ulang dengan PIN.");
+        setErrorMsg("Sesi login tidak valid. Silakan login ulang dengan PIN.");
+        setConfirmOpenModal(false);
+        return;
+      }
+
       const inventoryDataPayload = products.map(p => {
         const stockInput = stocks.find(s => s.productId === p.id)?.stock || 0;
-        return { product_id: p.id, nama: p.name, stok_awal: stockInput, terjual: 0, sisa: stockInput };
+        const invRow = availableStocks.find((a: any) => a.product_id === p.id);
+        const name = invRow ? invRow.product_name : p.name;
+        return { product_id: p.id, nama: name, stok_awal: stockInput, terjual: 0, sisa: stockInput };
       });
-      const newShift = await bukaShift(workerName, selectedOutlet, shiftType, inventoryDataPayload);
+      const newShift = await bukaShift(userId, workerName, selectedOutlet, shiftType, inventoryDataPayload);
       
+      // Simpan shift baru ke dalam fast cache localStorage (Single Source of Truth sync)
+      if (newShift && newShift.id) {
+        saveActiveShift({
+          active_shift_id: newShift.id,
+          location_id: selectedOutlet,
+          location_name: selectedOutlet,
+          cashier_id: newShift.user_id || userId,
+          cashier_name: workerName,
+          status: "OPEN",
+          opened_at: newShift.created_at || new Date().toISOString(),
+          shift_type: shiftType,
+        });
+      }
+
       setConfirmOpenModal(false);
       setPendingShiftData(newShift);
       setSuccessOpenModal(true);
@@ -153,7 +262,25 @@ export default function WorkerDashboard() {
   const masukKeKasirLive = async () => {
     setSuccessOpenModal(false);
     setActiveShift(pendingShiftData);
-    if (selectedOutlet) {
+    if (pendingShiftData && pendingShiftData.id) {
+      saveActiveShift({
+        active_shift_id: pendingShiftData.id,
+        location_id: selectedOutlet,
+        location_name: selectedOutlet,
+        cashier_id: pendingShiftData.user_id || "mock-1",
+        cashier_name: workerName,
+        status: "OPEN",
+        opened_at: pendingShiftData.created_at || new Date().toISOString(),
+        shift_type: shiftType,
+      });
+    }
+    if (pendingShiftData && pendingShiftData.id) {
+      let inv = await getLiveStockByShiftId(pendingShiftData.id);
+      if (!inv || inv.length === 0) {
+        inv = pendingShiftData.inventory_data || [];
+      }
+      setLiveInventory(inv);
+    } else if (selectedOutlet) {
       const inv = await getLiveStockByOutlet(selectedOutlet);
       setLiveInventory(inv);
     }
@@ -164,13 +291,80 @@ export default function WorkerDashboard() {
     if (!activeShift || !confirmSale.productId) return;
     try {
       setLoading(true);
-      await catatPenjualanProduk(activeShift.id, confirmSale.productId, 1);
-      const inv = await getLiveStockByOutlet(selectedOutlet);
+      const price = getPrice(confirmSale.productId);
+      const metodeBayar = confirmSale.paymentMethod || 'CASH';
+      await catatPenjualanProduk(activeShift.id, confirmSale.productId, 1, metodeBayar, price);
+      
+      let inv = await getLiveStockByShiftId(activeShift.id);
+      if (!inv || inv.length === 0) {
+        inv = activeShift.inventory_data || [];
+      }
       setLiveInventory(inv);
+      // Hapus update omset_tunai manual yang lama.
+      // Jika diperlukan, refetch shifts data disini, tapi biarkan Realtime update inventory.
       // Tutup modal setelah sukses
-      setConfirmSale({ isOpen: false, productId: null, productName: "" });
+      setConfirmSale({ isOpen: false, productId: null, productName: "", paymentMethod: 'CASH' });
     } catch (err: any) {
       alert("Gagal mencatat penjualan: " + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Handler untuk membuka modal Tutup Shift dengan sinkronisasi live dari Supabase
+  const handleOpenCloseShiftModal = async () => {
+    if (!activeShift?.id) {
+      setConfirmClose(true);
+      return;
+    }
+    try {
+      setLoading(true);
+      const { data: latestShift, error } = await supabase
+        .from("shifts")
+        .select("omset_tunai, omset_qris, total_sales, inventory_data")
+        .eq("id", activeShift.id)
+        .maybeSingle();
+
+      if (latestShift && !error) {
+        setActiveShift((prev: any) => ({
+          ...prev,
+          omset_tunai: latestShift.omset_tunai,
+          omset_qris: latestShift.omset_qris,
+          total_sales: latestShift.total_sales,
+          inventory_data: latestShift.inventory_data || prev.inventory_data,
+        }));
+        
+        // Fetch fresh inventory one last time from the Single Source of Truth
+        // to ensure we have the absolute latest data before closing.
+        let inv = await getLiveStockByShiftId(activeShift.id);
+        if (!inv || inv.length === 0) {
+          inv = activeShift.inventory_data || [];
+        }
+        setLiveInventory(inv);
+      }
+    } catch (e) {
+      console.error("Gagal sync data shift sebelum tutup:", e);
+    } finally {
+      setLoading(false);
+      setConfirmClose(true);
+    }
+  };
+
+  // Handler untuk membuka Modal Transfer Stok
+  const handleOpenRestockModal = async (productId: number, productName: string, currentStock: number) => {
+    try {
+      setLoading(true);
+      const mStock = await getMasterInventoryStock(productId);
+      setRestockModal({
+        isOpen: true,
+        productId,
+        productName,
+        addedAmount: 1,
+        masterStock: mStock,
+        currentShiftStock: currentStock
+      });
+    } catch (err: any) {
+      alert("Gagal mengecek Master Inventory: " + err.message);
     } finally {
       setLoading(false);
     }
@@ -181,12 +375,24 @@ export default function WorkerDashboard() {
     if (!activeShift || !restockModal.productId || restockModal.addedAmount <= 0) return;
     try {
       setLoading(true);
-      await tambahStokProduk(activeShift.id, restockModal.productId, restockModal.addedAmount);
-      const inv = await getLiveStockByOutlet(selectedOutlet);
+      
+      const crewName = workerName || activeShift?.crew_name || activeShift?.cashier_name || "Crew Member";
+      
+      await transferAdditionalStock(
+        activeShift.id || activeShift.active_shift_id,
+        restockModal.productId,
+        restockModal.addedAmount,
+        crewName
+      );
+      
+      let inv = await getLiveStockByShiftId(activeShift.id || activeShift.active_shift_id);
+      if (!inv || inv.length === 0) {
+        inv = activeShift.inventory_data || [];
+      }
       setLiveInventory(inv);
-      setRestockModal({ isOpen: false, productId: null, productName: "", addedAmount: 1 });
+      setRestockModal({ isOpen: false, productId: null, productName: "", addedAmount: 1, masterStock: 0, currentShiftStock: 0 });
     } catch (err: any) {
-      alert("Gagal menambahkan stok: " + err.message);
+      alert(err.message || "Gagal mentransfer stok dari gudang.");
     } finally {
       setLoading(false);
     }
@@ -207,26 +413,24 @@ export default function WorkerDashboard() {
     return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(num);
   };
 
-  // Fungsi Tutup Shift (Dijalankan dari Modal)
-  const executeTutupShift = async () => {
-    if (!activeShift) return;
-    try {
-      setLoading(true);
-      await tutupShift(activeShift.id, totalOmset, liveInventory);
-      setActiveShift(null);
-      setLiveInventory([]);
-      setConfirmClose(false);
-    } catch (err: any) {
-      alert("Gagal menutup shift: " + err.message);
-    } finally {
-      setLoading(false);
-    }
+  const [showCloseSuccessToast, setShowCloseSuccessToast] = useState(false);
+
+  // Handler Saat Shift Sukses Ditutup via CloseShiftModal
+  const handleSuccessCloseShift = () => {
+    setConfirmClose(false);
+    clearActiveShift();
+    setActiveShift(null);
+    setLiveInventory([]);
+    setShowCloseSuccessToast(true);
+    setTimeout(() => {
+      router.replace("/auth-pin");
+    }, 1800);
   };
 
   const handleLogout = async () => {
     setAuthLoading(true);
-    await supabase.auth.signOut();
-    router.push("/login");
+    clearActiveShift();
+    router.replace("/kasir");
   };
 
   if (authLoading) {
@@ -271,114 +475,152 @@ export default function WorkerDashboard() {
         <AnimatePresence mode="wait">
           {!activeShift ? (
             /* ================= STATE 1: BUKA SHIFT ================= */
-            <motion.div key="buka-shift" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="w-full">
-              
-              {/* HERO BANNER */}
-              <div className="relative w-full h-48 md:h-64 rounded-3xl overflow-hidden mb-8 shadow-2xl">
-                <img src="/hero-menu.jpeg" alt="Hero" className="w-full h-full object-cover" loading="lazy" />
-                <div className="absolute inset-0 bg-gradient-to-r from-black via-black/80 to-transparent" />
-                <div className="absolute inset-0 flex flex-col justify-center p-8 md:p-12">
-                  <div className="flex items-center gap-2 mb-3">
-                    <span className="w-8 h-[2px] bg-[#EA580C]" />
-                    <h2 className="text-xs font-black text-[#EA580C] uppercase tracking-[0.3em]">Portal Sistem</h2>
+            <motion.div key="buka-shift" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="w-full fixed inset-0 z-50 bg-zinc-950 overflow-hidden flex flex-col items-center">
+              <div className="w-full max-w-7xl h-full flex flex-col p-6 gap-6">
+                
+                {/* Header Compact */}
+                <div className="flex items-center gap-4 shrink-0 px-2 pt-2">
+                  <div className="w-10 h-10 rounded-full bg-orange-500/10 flex items-center justify-center">
+                    <Store className="w-5 h-5 text-orange-500" />
                   </div>
-                  <h1 className="text-3xl md:text-5xl font-black text-white leading-tight tracking-tight">SELAMAT DATANG<br/>CREW</h1>
+                  <div>
+                    <h1 className="text-xl font-bold text-white tracking-tight">Persiapan Shift Baru</h1>
+                    <p className="text-xs text-zinc-500">Ambil dan validasi stok awal produk.</p>
+                  </div>
                 </div>
-              </div>
 
-              {/* FORM SECTION */}
-              <form onSubmit={handleBukaShift} className="w-full">
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-10 items-start">
+                <form onSubmit={handleBukaShift} className="grid grid-cols-1 lg:grid-cols-12 gap-6 flex-1 min-h-0">
                   
-                  {/* KOLOM KIRI (5 KOLOM): DATA CREW */}
-                  <div className="lg:col-span-5 space-y-6 bg-[#111] p-6 md:p-8 rounded-3xl border border-white/5 shadow-xl">
-                    <div className="flex flex-col gap-2">
-                      <label className="text-[10px] font-black text-neutral-500 uppercase tracking-widest ml-1">Lokasi Tugas (Otomatis)</label>
-                      <div className="w-full bg-[#1A1A1A] border border-neutral-800 rounded-2xl px-5 py-4 text-white text-sm font-bold flex items-center gap-3">
-                        <span className="text-xl">📍</span> 
-                        {selectedOutlet ? <span>{selectedOutlet}</span> : <span className="text-red-400">Akun tidak memiliki lokasi tugas</span>}
-                      </div>
-                    </div>
+                  {/* LEFT PANEL */}
+                  <div className="lg:col-span-5 flex flex-col gap-4 overflow-y-auto pr-2 pb-24 lg:pb-0">
                     
-                    <div className="flex flex-col gap-2">
-                      <label className="text-[10px] font-black text-neutral-500 uppercase tracking-widest ml-1">Tipe Shift</label>
-                      <div className="relative flex w-full bg-[#1A1A1A] p-1 rounded-2xl border border-neutral-800">
-                        <div className={`absolute top-1 bottom-1 w-[calc(50%-4px)] bg-[#EA580C] rounded-xl transition-all duration-300 ease-in-out shadow-md ${shiftType === 'pagi' ? 'left-1' : 'left-[calc(50%+2px)]'}`}></div>
-                        <button 
-                          type="button" 
-                          onClick={() => setShiftType('pagi')}
-                          className={`relative z-10 w-1/2 py-3.5 text-sm font-bold tracking-wide rounded-xl transition-colors duration-300 ${shiftType === 'pagi' ? 'text-white' : 'text-neutral-500 hover:text-neutral-300'}`}
-                        >
-                          Pagi
-                        </button>
-                        <button 
-                          type="button" 
-                          onClick={() => setShiftType('malam')}
-                          className={`relative z-10 w-1/2 py-3.5 text-sm font-bold tracking-wide rounded-xl transition-colors duration-300 ${shiftType === 'malam' ? 'text-white' : 'text-neutral-500 hover:text-neutral-300'}`}
-                        >
-                          Malam
-                        </button>
+                    {/* Lokasi Card */}
+                    <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 shadow-lg flex items-center justify-between">
+                      <div>
+                        <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1">Lokasi Shift</p>
+                        <h3 className="text-lg font-bold text-white">{selectedOutlet || "Memuat..."}</h3>
+                      </div>
+                      <div className="px-3 py-1 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-bold rounded-lg uppercase">
+                        Active
                       </div>
                     </div>
 
-                    <div className="flex flex-col gap-2">
-                      <label className="text-[10px] font-black text-neutral-500 uppercase tracking-widest ml-1">Nama Crew</label>
-                      <input 
-                        type="text" 
-                        placeholder="Masukkan nama Anda..."
-                        value={workerName}
-                        onChange={(e) => setWorkerName(e.target.value)}
-                        className="bg-[#1A1A1A] text-white border border-neutral-800 rounded-2xl px-6 py-4 w-full focus:ring-2 focus:ring-[#EA580C] focus:border-[#EA580C] transition-all outline-none text-sm font-bold"
-                      />
+                    {/* Informasi Crew Card */}
+                    <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 shadow-lg space-y-4">
+                      <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2 border-b border-zinc-800 pb-2">Informasi Crew</p>
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-xl bg-zinc-800 flex items-center justify-center">
+                          <User className="w-6 h-6 text-zinc-400" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-bold text-white">{workerName || "Crew"}</p>
+                          <p className="text-xs text-zinc-500" suppressHydrationWarning>Waktu: {new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} WIB</p>
+                        </div>
+                      </div>
                     </div>
 
-                    <button type="submit" disabled={loading} className="w-full mt-6 py-4 bg-[#EA580C] hover:bg-[#d04e0a] text-white text-sm font-bold rounded-2xl tracking-widest uppercase transition-all whitespace-nowrap flex justify-center items-center gap-3 disabled:opacity-50">
-                      {loading ? <div className="w-5 h-5 rounded-full border-2 border-white/20 border-t-white animate-spin" /> : "BUKA SHIFT SEKARANG"}
+                    {/* Ringkasan Card */}
+                    <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 shadow-lg mt-auto mb-4 border-t-2 border-t-orange-500">
+                      <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-4">Ringkasan Pengambilan</p>
+                      
+                      <div className="flex justify-between items-center mb-3">
+                        <span className="text-sm text-zinc-400">Total SKU Dipilih</span>
+                        <span className="text-sm font-bold text-white">{stocks.filter(s => s.stock > 0).length} Produk</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-zinc-400">Total Cup Dibawa</span>
+                        <span className="text-xl font-black text-orange-400">{stocks.reduce((acc, curr) => acc + curr.stock, 0)} Cup</span>
+                      </div>
+                    </div>
+
+                    <button type="submit" disabled={loading || stocks.reduce((acc, curr) => acc + curr.stock, 0) === 0} className="w-full py-4 bg-orange-600 hover:bg-orange-500 active:scale-[0.98] transition-all text-white font-bold rounded-2xl shadow-xl shadow-orange-900/20 disabled:opacity-50 disabled:cursor-not-allowed shrink-0">
+                      {loading ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : "BUKA SHIFT"}
                     </button>
                   </div>
 
-                  {/* KOLOM KANAN (7 KOLOM): STOK CUP */}
-                  <div className="lg:col-span-7 bg-[#111] p-6 md:p-8 rounded-3xl border border-white/5 shadow-xl">
-                    <label className="text-[10px] font-black text-[#EA580C] uppercase tracking-widest ml-1 block flex items-center gap-2 mb-6">
-                      <div className="w-1.5 h-1.5 rounded-full bg-[#EA580C]" /> Hitung Stok Awal Cup
-                    </label>
+                  {/* RIGHT PANEL (Scrollable Products) */}
+                  <div className="lg:col-span-7 bg-zinc-900 border border-zinc-800 rounded-3xl p-6 shadow-xl flex flex-col h-full min-h-0">
                     
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      {products.map((p) => (
-                        <div key={p.id} className="flex items-center justify-between bg-[#0A0A0A] border border-neutral-800 rounded-2xl p-3">
-                          <div className="flex items-center gap-4">
-                            <div className="relative w-12 h-12 rounded-xl bg-[#1A1A1A] border border-neutral-800 overflow-hidden shrink-0">
-                              <img src={p.image} alt={p.name} className="w-full h-full object-cover" loading="lazy" />
+                    <div className="flex justify-between items-end mb-6 shrink-0">
+                      <div>
+                        <h2 className="text-sm font-bold text-white mb-1">Ambil Produk Untuk Shift</h2>
+                        <p className="text-xs text-zinc-500">Pilih jumlah stok yang akan dibawa ke gerobak.</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-0.5">Total Stok Master</p>
+                        <p className="text-sm font-bold text-white font-mono">{availableStocks.reduce((sum, item) => sum + item.current_stock, 0)} Cup</p>
+                      </div>
+                    </div>
+
+                    <div className="overflow-y-auto pr-2 space-y-3 pb-24 lg:pb-0">
+                      {products.map((p) => {
+                        const invData = availableStocks.find(a => a.product_id === p.id);
+                        const currentStock = invData ? invData.current_stock : 0;
+                        const selectedStock = stocks.find(s => s.productId === p.id)?.stock || 0;
+                        const sisaMaster = currentStock - selectedStock;
+                        const isEmpty = currentStock === 0;
+                        const isLowStock = currentStock > 0 && currentStock <= 10;
+                        const isMaxed = selectedStock >= currentStock;
+
+                        return (
+                          <div key={p.id} className={`w-full flex items-center p-3 rounded-2xl border transition-all ${isEmpty ? 'opacity-50 border-red-500/20 bg-red-950/10 grayscale' : isMaxed ? 'border-orange-500/30 bg-orange-950/10' : 'border-zinc-800 bg-zinc-950/50'}`}>
+                            <div className="w-14 h-14 rounded-xl overflow-hidden shrink-0 bg-zinc-900 border border-zinc-800">
+                              <img src={p.image} alt={p.name} className="w-full h-full object-cover" />
                             </div>
-                            <span className="text-xs font-bold text-white max-w-[80px] truncate">{p.name}</span>
+                            <div className="flex-1 ml-4 min-w-0 pr-2">
+                              <div className="flex items-center gap-2 mb-1">
+                                <h4 className="text-sm font-bold text-white truncate">{p.name}</h4>
+                                {isEmpty ? (
+                                  <span className="px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-red-500/10 text-red-500 border border-red-500/20">Habis</span>
+                                ) : isLowStock ? (
+                                  <span className="px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-orange-500/10 text-orange-500 border border-orange-500/20">Low</span>
+                                ) : (
+                                  <span className="px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">Ready</span>
+                                )}
+                              </div>
+                              <p className="text-[11px] text-zinc-500">Sisa Master: <span className={`font-mono font-bold ${sisaMaster < 10 && !isEmpty ? 'text-red-400' : 'text-zinc-400'}`}>{sisaMaster} Cup</span></p>
+                            </div>
+                            
+                            {/* Stepper */}
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <button 
+                                type="button" 
+                                disabled={selectedStock <= 0 || isEmpty}
+                                onClick={() => decrementStock(p.id)} 
+                                className="w-8 h-8 rounded-lg bg-zinc-800 hover:bg-zinc-700 disabled:opacity-30 flex items-center justify-center text-zinc-300 transition-colors"
+                              >
+                                <Minus className="w-3.5 h-3.5" />
+                              </button>
+                              <div className="w-12 text-center">
+                                <input
+                                  type="number"
+                                  inputMode="numeric"
+                                  value={selectedStock || ''}
+                                  onChange={(e) => handleStockChange(p.id, e.target.value, currentStock)}
+                                  onBlur={(e) => {
+                                    if (!e.target.value) handleStockChange(p.id, "0", currentStock);
+                                  }}
+                                  disabled={isEmpty}
+                                  placeholder="0"
+                                  className="w-full bg-zinc-900/50 text-center text-sm font-black text-white font-mono focus:outline-none focus:ring-1 focus:ring-orange-500 rounded py-1 border border-zinc-800 disabled:opacity-50"
+                                />
+                              </div>
+                              <button 
+                                type="button" 
+                                disabled={isMaxed || isEmpty}
+                                onClick={() => incrementStock(p.id)} 
+                                className="w-8 h-8 rounded-lg bg-orange-500/20 hover:bg-orange-500/30 border border-orange-500/20 disabled:opacity-30 disabled:border-transparent disabled:bg-zinc-800 disabled:hover:bg-zinc-800 flex items-center justify-center text-orange-500 transition-colors"
+                              >
+                                <Plus className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <button type="button" onClick={() => decrementStock(p.id)} className="w-8 h-8 rounded-xl bg-[#1A1A1A] border border-neutral-800 flex items-center justify-center text-neutral-400 active:bg-neutral-800">
-                              <Minus className="w-3 h-3" />
-                            </button>
-                            <input 
-                              type="number"
-                              min="0"
-                              value={String(stocks.find(s => s.productId === p.id)?.stock || 0)}
-                              onChange={(e) => {
-                                // Hapus angka 0 di depan agar tidak menumpuk jadi "034"
-                                const rawValue = e.target.value.replace(/^0+/, '');
-                                const val = parseInt(rawValue);
-                                setStocks(prev => prev.map(s => s.productId === p.id ? { ...s, stock: isNaN(val) ? 0 : Math.max(0, val) } : s));
-                              }}
-                              className="w-8 p-0 m-0 text-center text-sm font-black text-white bg-transparent outline-none focus:ring-0 border-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                            />
-                            <button type="button" onClick={() => incrementStock(p.id)} className="w-8 h-8 rounded-xl bg-[#EA580C]/10 border border-[#EA580C]/20 flex items-center justify-center text-[#EA580C] active:bg-[#EA580C]/20">
-                              <Plus className="w-3 h-3" />
-                            </button>
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
-                </div>
-
-              </form>
+                </form>
+              </div>
             </motion.div>
           ) : (
             /* ================= STATE 2: KASIR LIVE ================= */
@@ -386,7 +628,7 @@ export default function WorkerDashboard() {
               
               <div className="bg-[#111111] border border-[#1A1A1A] p-6 rounded-3xl relative overflow-hidden mb-8 shadow-xl">
                 <div className="absolute top-5 right-5 z-[60] cursor-pointer pointer-events-auto">
-                  <button onClick={() => setConfirmClose(true)} className="px-4 py-2.5 bg-red-500/10 border border-red-500/20 text-red-500 text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-red-500 hover:text-white transition-all active:scale-95">
+                  <button onClick={handleOpenCloseShiftModal} className="px-4 py-2.5 bg-red-500/10 border border-red-500/20 text-red-500 text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-red-500 hover:text-white transition-all active:scale-95">
                     Tutup Shift
                   </button>
                 </div>
@@ -428,7 +670,7 @@ export default function WorkerDashboard() {
                                 <span className={`text-base font-black ${isEmpty ? 'text-red-500' : 'text-[#EA580C]'}`}>{currentStock}</span>
                               </div>
                               <button
-                                onClick={() => setRestockModal({ isOpen: true, productId: p.id, productName: p.name, addedAmount: 1 })}
+                                onClick={() => handleOpenRestockModal(p.id, p.name, currentStock)}
                                 disabled={loading}
                                 className="w-8 h-8 shrink-0 flex items-center justify-center rounded-xl border border-neutral-700 bg-transparent text-neutral-400 hover:border-neutral-500 hover:text-white transition-all duration-200 active:scale-95 z-20 pointer-events-auto"
                                 title="Tambah Stok"
@@ -448,7 +690,7 @@ export default function WorkerDashboard() {
                                 <X className="w-3 h-3"/> SOLD OUT
                               </button>
                               <button 
-                                onClick={() => setRestockModal({ isOpen: true, productId: p.id, productName: p.name, addedAmount: 1 })}
+                                onClick={() => handleOpenRestockModal(p.id, p.name, currentStock)}
                                 disabled={loading}
                                 className="flex-1 flex items-center justify-center gap-1 py-3.5 rounded-xl font-black text-[10px] tracking-widest uppercase text-[#EA580C] border border-[#EA580C] hover:bg-[#EA580C]/10 transition-colors active:scale-95"
                               >
@@ -457,7 +699,7 @@ export default function WorkerDashboard() {
                             </div>
                           ) : (
                             <button 
-                              onClick={() => setConfirmSale({ isOpen: true, productId: p.id, productName: p.name })} 
+                              onClick={() => setConfirmSale({ isOpen: true, productId: p.id, productName: p.name, paymentMethod: 'CASH' })} 
                               disabled={loading}
                               className="w-full flex items-center justify-center gap-2 py-3.5 mt-1 rounded-xl font-black text-xs tracking-widest uppercase transition-all bg-[#EA580C] text-white active:scale-[0.95]"
                             >
@@ -483,10 +725,36 @@ export default function WorkerDashboard() {
                 <CheckCircle2 className="w-8 h-8 text-[#EA580C]" />
               </div>
               <h3 className="text-xl font-black text-white mb-2">Konfirmasi Jual</h3>
-              <p className="text-neutral-400 text-sm mb-8">Kurangi 1 stok <strong className="text-white">{confirmSale.productName}</strong> dari gerobak?</p>
+              <p className="text-neutral-400 text-sm mb-6">Kurangi 1 stok <strong className="text-white">{confirmSale.productName}</strong> dari gerobak?</p>
               
+              {/* PEMILIHAN METODE BAYAR */}
+              <div className="w-full bg-[#1A1A1A] p-1.5 rounded-2xl border border-neutral-800 flex gap-1 mb-6">
+                <button
+                  type="button"
+                  onClick={() => setConfirmSale(prev => ({ ...prev, paymentMethod: 'CASH' }))}
+                  className={`flex-1 py-3 rounded-xl font-black text-xs uppercase tracking-wider transition-all duration-200 flex items-center justify-center gap-2 ${
+                    (!confirmSale.paymentMethod || confirmSale.paymentMethod === 'CASH')
+                      ? 'bg-[#10B981] text-white shadow-lg shadow-[#10B981]/20'
+                      : 'text-neutral-500 hover:text-neutral-300'
+                  }`}
+                >
+                  💵 TUNAI
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfirmSale(prev => ({ ...prev, paymentMethod: 'QRIS' }))}
+                  className={`flex-1 py-3 rounded-xl font-black text-xs uppercase tracking-wider transition-all duration-200 flex items-center justify-center gap-2 ${
+                    confirmSale.paymentMethod === 'QRIS'
+                      ? 'bg-[#3B82F6] text-white shadow-lg shadow-[#3B82F6]/20'
+                      : 'text-neutral-500 hover:text-neutral-300'
+                  }`}
+                >
+                  📱 QRIS
+                </button>
+              </div>
+
               <div className="flex w-full gap-3">
-                <button onClick={() => setConfirmSale({ isOpen: false, productId: null, productName: "" })} disabled={loading} className="flex-1 py-4 rounded-2xl bg-[#1A1A1A] text-white font-bold text-sm">Batal</button>
+                <button onClick={() => setConfirmSale({ isOpen: false, productId: null, productName: "", paymentMethod: 'CASH' })} disabled={loading} className="flex-1 py-4 rounded-2xl bg-[#1A1A1A] text-white font-bold text-sm">Batal</button>
                 <button onClick={executeJual} disabled={loading} className="flex-1 py-4 rounded-2xl bg-[#EA580C] text-white font-bold text-sm flex items-center justify-center gap-2">
                   {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Ya, Jual!"}
                 </button>
@@ -501,38 +769,55 @@ export default function WorkerDashboard() {
         {restockModal.isOpen && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-5">
             <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }} className="bg-[#111111] border border-[#1A1A1A] w-full max-w-sm rounded-3xl p-6 shadow-2xl flex flex-col items-center text-center">
-              <div className="w-16 h-16 rounded-full bg-[#EA580C]/10 flex items-center justify-center mb-4">
-                <Plus className="w-8 h-8 text-[#EA580C]" />
+              <div className="w-16 h-16 rounded-full bg-[#EA580C]/10 flex items-center justify-center mb-4 shrink-0">
+                <Store className="w-8 h-8 text-[#EA580C]" />
               </div>
-              <h3 className="text-xl font-black text-white mb-2">Tambah Stok Baru</h3>
-              <p className="text-neutral-400 text-sm mb-6">Berapa banyak stok <strong className="text-white">{restockModal.productName}</strong> yang ingin ditambahkan?</p>
+              <h3 className="text-xl font-black text-white mb-2">Transfer Stok dari Gudang</h3>
+              <p className="text-neutral-400 text-sm mb-6">Ambil stok tambahan dari Master Inventory.</p>
               
-              <div className="w-full flex items-center justify-center gap-4 mb-8">
-                <button 
-                  onClick={() => setRestockModal(prev => ({ ...prev, addedAmount: Math.max(1, prev.addedAmount - 1) }))}
-                  className="w-12 h-12 rounded-xl bg-[#1A1A1A] border border-neutral-800 flex items-center justify-center text-neutral-400 active:bg-neutral-800"
-                >
-                  <Minus className="w-5 h-5" />
-                </button>
-                <input 
-                  type="number" 
-                  min="1" 
-                  value={restockModal.addedAmount}
-                  onChange={(e) => setRestockModal(prev => ({ ...prev, addedAmount: parseInt(e.target.value) || 1 }))}
-                  className="bg-transparent text-center text-3xl font-black text-white w-20 outline-none"
-                />
-                <button 
-                  onClick={() => setRestockModal(prev => ({ ...prev, addedAmount: prev.addedAmount + 1 }))}
-                  className="w-12 h-12 rounded-xl bg-[#EA580C]/10 border border-[#EA580C]/20 flex items-center justify-center text-[#EA580C] active:bg-[#EA580C]/20"
-                >
-                  <Plus className="w-5 h-5" />
-                </button>
+              <div className="w-full bg-[#1A1A1A] rounded-2xl p-4 mb-6 text-left border border-neutral-800">
+                <h4 className="font-bold text-white mb-3 border-b border-neutral-800 pb-2">{restockModal.productName}</h4>
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-xs text-neutral-400">Shift Stock (Sisa)</span>
+                  <span className="font-bold text-white">{restockModal.currentShiftStock} Cup</span>
+                </div>
+                <div className="flex justify-between items-center mb-4">
+                  <span className="text-xs text-neutral-400">Master Stock Available</span>
+                  <span className="font-bold text-emerald-400">{restockModal.masterStock} Cup</span>
+                </div>
+
+                <div className="w-full flex items-center justify-center gap-4 pt-4 border-t border-neutral-800">
+                  <button 
+                    onClick={() => setRestockModal(prev => ({ ...prev, addedAmount: Math.max(1, prev.addedAmount - 1) }))}
+                    className="w-12 h-12 rounded-xl bg-black border border-neutral-800 flex items-center justify-center text-neutral-400 active:bg-neutral-900"
+                  >
+                    <Minus className="w-5 h-5" />
+                  </button>
+                  <input 
+                    type="number" 
+                    min="1" 
+                    max={restockModal.masterStock}
+                    value={restockModal.addedAmount}
+                    onChange={(e) => setRestockModal(prev => ({ ...prev, addedAmount: Math.min(restockModal.masterStock, Math.max(1, parseInt(e.target.value) || 1)) }))}
+                    className="bg-transparent text-center text-3xl font-black text-white w-20 outline-none"
+                  />
+                  <button 
+                    onClick={() => setRestockModal(prev => ({ ...prev, addedAmount: Math.min(restockModal.masterStock, prev.addedAmount + 1) }))}
+                    className="w-12 h-12 rounded-xl bg-[#EA580C]/10 border border-[#EA580C]/20 flex items-center justify-center text-[#EA580C] active:bg-[#EA580C]/20"
+                  >
+                    <Plus className="w-5 h-5" />
+                  </button>
+                </div>
               </div>
 
               <div className="flex w-full gap-3">
-                <button onClick={() => setRestockModal({ isOpen: false, productId: null, productName: "", addedAmount: 1 })} disabled={loading} className="flex-1 py-4 rounded-2xl bg-[#1A1A1A] text-white font-bold text-sm">Batal</button>
-                <button onClick={executeRestock} disabled={loading} className="flex-1 py-4 rounded-2xl bg-[#EA580C] text-white font-bold text-sm flex items-center justify-center gap-2">
-                  {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Simpan Stok"}
+                <button onClick={() => setRestockModal({ isOpen: false, productId: null, productName: "", addedAmount: 1, masterStock: 0, currentShiftStock: 0 })} disabled={loading} className="flex-1 py-4 rounded-2xl bg-[#1A1A1A] text-white font-bold text-sm">Batal</button>
+                <button 
+                  onClick={executeRestock} 
+                  disabled={loading || restockModal.addedAmount > restockModal.masterStock || restockModal.addedAmount <= 0} 
+                  className="flex-1 py-4 rounded-2xl bg-[#EA580C] text-white font-bold text-sm flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Transfer"}
                 </button>
               </div>
             </motion.div>
@@ -540,39 +825,38 @@ export default function WorkerDashboard() {
         )}
       </AnimatePresence>
 
-      {/* ================= MODAL KONFIRMASI TUTUP SHIFT ================= */}
-      <AnimatePresence>
-        {confirmClose && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-5">
-            <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }} className="bg-[#111111] border border-red-500/20 w-full max-w-sm rounded-3xl p-6 shadow-2xl flex flex-col items-center text-center">
-              <div className="w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center mb-4">
-                <AlertTriangle className="w-8 h-8 text-red-500" />
-              </div>
-              <h3 className="text-xl font-black text-white mb-2">Tutup Shift Sekarang?</h3>
-              <p className="text-neutral-400 text-xs mb-6">Data stok akhir akan dikunci dan Anda akan keluar dari mode kasir.</p>
-              
-              <div className="w-full bg-[#1A1A1A] border border-neutral-800 rounded-2xl p-4 mb-8">
-                <div className="flex justify-between items-center pb-3 border-b border-neutral-800">
-                  <span className="text-xs font-bold text-neutral-500">Total Omset</span>
-                  <span className="text-sm font-black text-[#EA580C]">{formatRupiah(totalOmset)}</span>
-                </div>
-                <div className="flex justify-between items-center py-3 border-b border-neutral-800">
-                  <span className="text-xs font-bold text-neutral-500">Cup Terjual</span>
-                  <span className="text-sm font-black text-[#10B981]">{totalCupTerjual} Cup</span>
-                </div>
-                <div className="flex justify-between items-center pt-3">
-                  <span className="text-xs font-bold text-neutral-500">Sisa Stok Fisik</span>
-                  <span className="text-sm font-black text-red-500">{totalSisaStok} Item</span>
-                </div>
-              </div>
+      {/* ================= MODAL KONFIRMASI & AUDIT TUTUP SHIFT (ENTERPRISE POS) ================= */}
+      <CloseShiftModal
+        isOpen={confirmClose}
+        onClose={() => setConfirmClose(false)}
+        onSuccessClose={handleSuccessCloseShift}
+        shiftId={activeShift?.id || activeShift?.active_shift_id || ""}
+        shiftName={activeShift?.shift_name || "Shift POS Reguler"}
+        cashierName={workerName || activeShift?.crew_name || activeShift?.cashier_name || "Crew Member"}
+        locationName={selectedOutlet || activeShift?.outlet_id || activeShift?.location_name || "Seruling Pasar"}
+        openTime={activeShift?.created_at || activeShift?.opened_at || new Date().toISOString()}
+        cashRevenue={Number(activeShift?.omset_tunai || activeShift?.cash_revenue || totalOmset)}
+        qrisRevenue={Number(activeShift?.omset_qris || activeShift?.qris_revenue || 0)}
+        totalTransactions={Number(activeShift?.total_transactions || totalCupTerjual || 1)}
+        inventoryData={(liveInventory as InventoryItemSnapshot[]) || []}
+      />
 
-              <div className="flex w-full gap-3">
-                <button onClick={() => setConfirmClose(false)} disabled={loading} className="flex-1 py-4 rounded-2xl bg-[#1A1A1A] text-white font-bold text-sm hover:bg-neutral-800 transition-colors">Batal</button>
-                <button onClick={executeTutupShift} disabled={loading} className="flex-1 py-4 rounded-2xl bg-red-500 text-white font-bold text-sm flex items-center justify-center gap-2 hover:bg-red-600 transition-colors">
-                  {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Konfirmasi Tutup"}
-                </button>
-              </div>
-            </motion.div>
+      {/* ================= TOAST SUKSES TUTUP SHIFT ================= */}
+      <AnimatePresence>
+        {showCloseSuccessToast && (
+          <motion.div
+            initial={{ opacity: 0, y: 50, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 50, scale: 0.9 }}
+            className="fixed bottom-6 right-6 z-[200] bg-gradient-to-r from-emerald-950 via-neutral-900 to-black border-2 border-emerald-500 text-white px-6 py-4 rounded-2xl shadow-[0_10px_40px_rgba(16,185,129,0.3)] flex items-center gap-3.5"
+          >
+            <div className="w-10 h-10 rounded-xl bg-emerald-500 text-black flex items-center justify-center shrink-0 font-black shadow-lg text-lg">
+              ✓
+            </div>
+            <div>
+              <p className="text-sm font-black text-white">✅ Shift Berhasil Ditutup</p>
+              <p className="text-xs text-emerald-200">Data finansial terekam. Mengalihkan ke halaman login PIN...</p>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
