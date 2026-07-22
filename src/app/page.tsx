@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import Image from "next/image";
 import { motion } from "framer-motion";
-import Preloader from "@/components/Preloader";
 import Navbar from "@/components/Navbar";
 import Hero from "@/components/Hero";
 import FeaturesBento from "@/components/FeaturesBento";
@@ -12,7 +11,6 @@ import SeriesGallery from "@/components/SeriesGallery";
 import Footer from "@/components/Footer";
 
 export default function Home() {
-  const [isLoaded, setIsLoaded] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
@@ -24,9 +22,7 @@ export default function Home() {
 
   return (
     <>
-      <Preloader onComplete={() => setIsLoaded(true)} />
-
-      <div className={`relative w-full ${isLoaded ? "opacity-100" : "opacity-0"} transition-opacity duration-700`}>
+      <div className="relative w-full">
         
         <Navbar />
         
