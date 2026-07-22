@@ -31,24 +31,11 @@ export default function Hero() {
           transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
           className="w-full md:w-[55%] h-[60%] md:h-full flex flex-col justify-center px-6 md:pl-20 md:pr-12 pt-16 md:pt-0"
         >
-          {/* Badge */}
-          <div className="flex items-center gap-2 mb-4 md:mb-6">
-            <Image
-              src="/images/hero-section-logo.PNG"
-              alt="Seru.ni Coffee Logo"
-              width={28}
-              height={28}
-              className="w-7 h-7 object-contain drop-shadow-sm"
-            />
-            <span className="text-sm font-bold text-neutral-800 tracking-wider uppercase">
-              Seru.ni Coffee
-            </span>
-          </div>
-
           {/* Headline */}
-          <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-black leading-[1.1] tracking-tight mb-3 md:mb-6 text-neutral-900">
+          <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-black leading-[1.1] tracking-tight mb-4 md:mb-6 text-neutral-900 mt-8 md:mt-0">
             Nikmati Kopi <br />
-            Terbaik <span className="text-orange-500">Tanpa<br className="hidden md:block" /> Harus Keluar</span> <br />
+            Terbaik <br />
+            <span className="text-orange-500">Tanpa Harus Keluar</span> <br />
             Rumah.
           </h1>
 
@@ -135,7 +122,7 @@ export default function Hero() {
         initial={{ opacity: 0, scale: 0.8, rotate: -5 }}
         animate={{ opacity: 1, scale: 1, rotate: 0 }}
         transition={{ duration: 1, delay: 0.3, ease: [0.16, 1, 0.3, 1] }}
-        className="absolute top-[60%] md:top-1/2 left-1/2 md:left-[55%] -translate-x-1/2 -translate-y-1/2 z-20 w-[55vw] max-w-[280px] md:max-w-[450px] lg:max-w-[550px] aspect-square pointer-events-none drop-shadow-2xl"
+        className="absolute top-[60%] md:top-1/2 right-[-5%] md:right-auto md:left-[60%] translate-x-0 md:-translate-x-1/2 -translate-y-1/2 z-20 w-[55vw] max-w-[280px] md:max-w-[450px] lg:max-w-[550px] aspect-square pointer-events-none drop-shadow-2xl"
       >
         <Image
           src="/images/kopi-hero.png"
