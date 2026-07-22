@@ -274,7 +274,7 @@ export const reportDataService = {
       if (outletMap[outlet]) outletMap[outlet].cups += qty;
       if (crewMap[crewName]) crewMap[crewName].cups += qty;
 
-      const pName = item.products?.product_name || `Product ${item.product_id}`;
+      const pName = (item.products as any)?.product_name || (Array.isArray(item.products) ? (item.products[0] as any)?.product_name : undefined) || `Product ${item.product_id}`;
       if (!productMap[pName]) productMap[pName] = { name: pName, cups: 0, revenue: 0 };
       productMap[pName].cups += qty;
       productMap[pName].revenue += item.subtotal || 0;
