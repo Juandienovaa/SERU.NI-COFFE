@@ -39,10 +39,7 @@ export default function Hero() {
             Rumah.
           </h1>
 
-          {/* Sub-headline */}
-          <p className="text-sm sm:text-base md:text-xl text-neutral-500 max-w-[420px] leading-relaxed mb-6 md:mb-10">
-            Pengalaman menikmati kopi premium dengan layanan Delivery yang cepat, praktis, dan berkualitas langsung ke meja Anda.
-          </p>
+
 
           {/* Buttons */}
           <div className="flex flex-row items-center gap-3 md:gap-4 w-full sm:w-auto">
