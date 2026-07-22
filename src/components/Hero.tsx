@@ -11,7 +11,7 @@ const staggerContainer = {
   show: {
     opacity: 1,
     transition: {
-      staggerChildren: 0.15,
+      staggerChildren: 0.1,
     },
   },
 };
@@ -21,105 +21,103 @@ const slideUp = {
   show: { opacity: 1, y: 0, transition: { duration: 0.8, ease: [0.16, 1, 0.3, 1] as [number, number, number, number] } },
 };
 
-const FEATURES = [
-  "Delivery Cepat",
-  "QRIS Payment",
-  "Freshly Brewed",
-  "Live Order Tracking"
-];
-
 export default function Hero() {
-  const scrollToMenu = (e: React.MouseEvent<HTMLAnchorElement>) => {
-    e.preventDefault();
-    const menuSection = document.getElementById("menu-section");
-    if (menuSection) {
-      menuSection.scrollIntoView({ behavior: "smooth" });
-    }
-  };
-
   return (
-    <section className="relative w-full min-h-screen bg-[#09090B] flex items-center justify-center pt-20 pb-16 overflow-hidden">
-      <div className="max-w-7xl mx-auto w-full px-6 lg:px-8 z-10 relative">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-8 items-center">
+    <section className="relative w-full min-h-screen bg-[#09090B] flex items-center justify-center pt-24 pb-16 overflow-hidden">
+      <div className="container mx-auto px-6 md:px-12 lg:px-24 w-full h-full">
+        
+        {/* Desktop: Grid 2 Columns | Mobile: Flex Column */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-12 lg:gap-20 items-center w-full h-full">
           
-          {/* LEFT COLUMN: Text & CTA */}
-          <motion.div 
+          {/* Kolom Kiri: Teks & CTA */}
+          <motion.div
             variants={staggerContainer}
             initial="hidden"
             animate="show"
-            className="flex flex-col items-start text-left max-w-2xl"
+            className="flex flex-col items-start justify-center order-2 md:order-1 z-10 w-full"
           >
-            {/* Badge */}
-            <motion.div variants={slideUp} className="mb-6 inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-white/10 bg-white/5 backdrop-blur-md">
-              <div className="w-5 h-5 relative rounded-full overflow-hidden">
-                <Image 
-                  src="/images/hero-section-logo.PNG" 
-                  alt="Seru.ni Logo" 
-                  fill 
-                  className="object-cover"
+            
+            {/* Badge Atas */}
+            <motion.div variants={slideUp} className="mb-6">
+              <div className="flex items-center gap-2 px-4 py-2 rounded-full border border-white/10 bg-white/5 backdrop-blur-sm">
+                <Image
+                  src="/images/hero-section-logo.PNG"
+                  alt="Seru.ni Coffee Logo"
+                  width={24}
+                  height={24}
+                  className="w-5 h-5 object-contain"
                 />
+                <span className="text-sm font-medium text-white tracking-wide">
+                  Seru.ni Coffee
+                </span>
               </div>
-              <span className="text-xs font-semibold tracking-wide text-white/90">Seru.ni Coffee</span>
             </motion.div>
 
             {/* Headline */}
-            <motion.h1 variants={slideUp} className="text-5xl sm:text-6xl lg:text-7xl font-black leading-[1.1] tracking-tight text-white mb-6">
-              Nikmati Kopi Terbaik<br />
-              <span className="text-orange-500">Tanpa Harus Keluar</span><br />
+            <motion.h1 variants={slideUp} className="text-5xl md:text-6xl lg:text-7xl font-bold leading-[1.1] tracking-tight mb-6 text-white">
+              Nikmati Kopi Terbaik <br />
+              <span className="text-orange-500">Tanpa Harus Keluar</span> <br />
               Rumah.
             </motion.h1>
 
             {/* Sub-headline */}
-            <motion.p variants={slideUp} className="text-base sm:text-lg text-gray-400 mb-10 max-w-xl leading-relaxed">
+            <motion.p variants={slideUp} className="text-lg md:text-xl text-neutral-400 max-w-[480px] leading-relaxed mb-10">
               Seru.ni Coffee menghadirkan pengalaman menikmati kopi premium dengan layanan Delivery yang cepat, praktis, dan berkualitas.
             </motion.p>
 
-            {/* Buttons */}
-            <motion.div variants={slideUp} className="flex flex-col sm:flex-row items-center gap-4 mb-12 w-full sm:w-auto">
-              <Link 
-                href="/menu-online" 
-                className="group w-full sm:w-auto flex items-center justify-center gap-2 bg-orange-500 hover:bg-orange-400 text-white px-8 py-4 rounded-full font-semibold transition-all duration-300"
+            {/* Tombol CTA */}
+            <motion.div variants={slideUp} className="flex flex-col sm:flex-row items-center gap-4 w-full sm:w-auto mb-16">
+              <Link
+                href="/menu-online"
+                className="group flex items-center justify-center gap-2 px-8 py-4 bg-orange-500 text-white rounded-full font-semibold text-lg transition-all hover:bg-orange-600 hover:scale-105 active:scale-95 w-full sm:w-auto shadow-[0_0_20px_rgba(249,115,22,0.3)]"
               >
                 <ShoppingBag className="w-5 h-5" />
-                <span>Pesan Online</span>
+                Pesan Online
               </Link>
               
-              <a 
-                href="#menu-section"
-                onClick={scrollToMenu}
-                className="group w-full sm:w-auto flex items-center justify-center gap-2 bg-transparent border border-white/20 hover:border-white/40 hover:bg-white/5 text-white px-8 py-4 rounded-full font-semibold transition-all duration-300"
+              <button 
+                onClick={() => {
+                  window.scrollBy({ top: window.innerHeight, behavior: "smooth" });
+                }}
+                className="flex items-center justify-center gap-2 px-8 py-4 bg-transparent border border-white/20 text-white rounded-full font-semibold text-lg transition-all hover:bg-white/10 w-full sm:w-auto"
               >
-                <span>Lihat Menu</span>
-                <ArrowDown className="w-5 h-5 text-neutral-400 group-hover:text-white transition-colors" />
-              </a>
+                Lihat Menu
+                <ArrowDown className="w-5 h-5" />
+              </button>
             </motion.div>
 
-            {/* Features List */}
-            <motion.div variants={slideUp} className="grid grid-cols-2 gap-3 sm:gap-4 w-full sm:w-auto">
-              {FEATURES.map((feature, idx) => (
-                <div key={idx} className="flex items-center gap-2.5 bg-white/5 border border-white/10 px-4 py-2.5 rounded-full">
+            {/* Features List (Grid 2x2) */}
+            <motion.div variants={slideUp} className="grid grid-cols-2 gap-4 w-full max-w-[400px]">
+              {[
+                "Delivery Cepat",
+                "QRIS Payment",
+                "Freshly Brewed",
+                "Live Order Tracking"
+              ].map((feature, i) => (
+                <div key={i} className="flex items-center gap-2 px-4 py-3 rounded-full border border-white/10 bg-white/5 backdrop-blur-sm">
                   <CheckCircle2 className="w-4 h-4 text-orange-500 shrink-0" />
-                  <span className="text-sm font-medium text-gray-300">{feature}</span>
+                  <span className="text-sm font-medium text-white whitespace-nowrap">{feature}</span>
                 </div>
               ))}
             </motion.div>
+
           </motion.div>
 
-          {/* RIGHT COLUMN: Hero Image */}
-          <motion.div 
+          {/* Kolom Kanan: Gambar Hero */}
+          <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            transition={{ duration: 1.2, ease: "easeOut", delay: 0.3 }}
-            className="relative w-full h-[400px] sm:h-[500px] lg:h-[600px] flex items-center justify-center"
+            transition={{ duration: 1, delay: 0.4 }}
+            className="relative order-1 md:order-2 flex items-center justify-center w-full h-full min-h-[40vh]"
           >
-            {/* Subtle Radial Glow */}
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] h-[300px] sm:w-[400px] sm:h-[400px] bg-orange-500/20 blur-[100px] rounded-full pointer-events-none" />
+            {/* Subtle Radial Glow Behind Image */}
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[70%] h-[70%] bg-orange-500/20 blur-[100px] rounded-full pointer-events-none" />
             
             {/* Hero Image */}
-            <div className="relative w-full h-full z-10">
+            <div className="relative w-full max-w-[500px] aspect-square z-10">
               <Image
                 src="/images/kopi-hero.png"
-                alt="Seru.ni Coffee Cup"
+                alt="Seru.ni Premium Coffee"
                 fill
                 priority
                 className="object-contain"
