@@ -18,13 +18,13 @@ import {
 import { motion } from "framer-motion";
 
 const STATUS_STAGES = [
-  { id: 'PENDING_PAYMENT', label: 'Menunggu Pembayaran', icon: CreditCard, description: 'Selesaikan pembayaran Anda.' },
-  { id: 'PAID', label: 'Pembayaran Diterima', icon: CheckCircle2, description: 'Pembayaran berhasil dikonfirmasi.' },
-  { id: 'CONFIRMED', label: 'Pesanan Dikonfirmasi', icon: Package, description: 'Kasir telah menerima pesanan Anda.' },
+  { id: 'WAITING_PAYMENT', label: 'Menunggu Pembayaran', icon: CreditCard, description: 'Selesaikan pembayaran Anda.' },
+  { id: 'WAITING_CONFIRMATION', label: 'Menunggu Konfirmasi', icon: CheckCircle2, description: 'Pembayaran berhasil, menunggu kasir.' },
+  { id: 'PROCESSING', label: 'Pesanan Diproses', icon: Package, description: 'Kasir telah mengkonfirmasi pesanan.' },
   { id: 'PREPARING', label: 'Sedang Disiapkan', icon: ChefHat, description: 'Barista kami sedang menyiapkan pesanan.' },
   { id: 'READY_FOR_DELIVERY', label: 'Menunggu Kurir', icon: Package, description: 'Pesanan siap diantar.' },
-  { id: 'ON_DELIVERY', label: 'Dalam Perjalanan', icon: Bike, description: 'Kurir sedang mengantar ke lokasi Anda.' },
-  { id: 'DELIVERED', label: 'Selesai', icon: Home, description: 'Pesanan telah diterima.' },
+  { id: 'ON_THE_WAY', label: 'Dalam Perjalanan', icon: Bike, description: 'Kurir sedang mengantar ke lokasi Anda.' },
+  { id: 'COMPLETED', label: 'Selesai', icon: Home, description: 'Pesanan telah diterima.' },
 ];
 
 export default function TrackingPage() {

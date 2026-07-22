@@ -39,13 +39,14 @@ export default function PaymentPage() {
         invoice_number: invoiceNumber,
         customer_name: data.customer.name,
         customer_phone: data.customer.phone,
-        address: data.customer.address,
-        map_link: mapLink,
+        delivery_address: data.customer.address,
+        latitude: data.customer.lat || null,
+        longitude: data.customer.lng || null,
         order_type: "DELIVERY",
         payment_status: 'WAITING_PAYMENT',
-        order_status: 'PENDING_PAYMENT',
+        order_status: 'WAITING_PAYMENT',
         subtotal: data.financial.subtotal,
-        shipping_fee: data.financial.delivery_fee,
+        delivery_fee: data.financial.delivery_fee,
         grand_total: data.financial.total,
         notes: data.customer.notes
       }]).select("id").single();
@@ -60,7 +61,7 @@ export default function PaymentPage() {
         order_id: newOrderId,
         product_id: item.product.product_id,
         product_name: item.product.name || item.product.product_name,
-        qty: item.qty,
+        quantity: item.qty,
         price: item.product.price || 0,
         subtotal: (item.product.price || 0) * item.qty
       }));
@@ -75,9 +76,9 @@ export default function PaymentPage() {
       simulatePaymentSuccess(newOrderId);
 
     } catch (err: any) {
-      console.error("Order Creation Error:", err);
+      console.error("Order Creation Error:", JSON.stringify(err, null, 2));
       Swal.fire({
-        icon: 'error', title: 'Terjadi Kesalahan', text: err.message,
+        icon: 'error', title: 'Terjadi Kesalahan', text: err.message || JSON.stringify(err),
         background: '#18181b', color: '#fff'
       });
     }
@@ -88,14 +89,15 @@ export default function PaymentPage() {
     // For this mockup, we auto-success after 5 seconds to demonstrate the flow.
     setTimeout(async () => {
       setPaymentStatus("VERIFYING");
-      // Update DB to trigger Cashier notification
-      await supabase.from("online_orders").update({
-        payment_status: 'WAITING_CONFIRMATION', 
-        order_status: 'PAID'
-      }).eq('id', id);
-
-      setTimeout(() => {
+      // Simulate verification delay
+      setTimeout(async () => {
+        await supabase.from("online_orders").update({
+          payment_status: 'WAITING_CONFIRMATION', 
+          order_status: 'WAITING_CONFIRMATION'
+        }).eq('id', id);
+        
         setPaymentStatus("PAID");
+
         setTimeout(() => {
           sessionStorage.setItem("current_tracking_id", id.toString());
           router.replace("/tracking");
