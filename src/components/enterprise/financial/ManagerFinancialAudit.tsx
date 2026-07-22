@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { FinancialToolbar, PeriodType } from "./FinancialToolbar";
 import { LedgerTableOffline, LedgerTableOnline } from "./LedgerTable";
+import { ExportReportModal } from "./ExportReportModal";
 import { BarChart3, Loader2, Store, Globe, Banknote, Coffee, ShieldCheck, Wallet, Search, Filter, X, FileText, CheckCircle2, History } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { financialService, OfflineLedgerItem, OnlineLedgerItem, FinancialSummaryData, OnlineSummaryData } from "@/services/financialService";
@@ -29,6 +30,9 @@ export const ManagerFinancialAudit = () => {
   // Filter & Search States
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"ALL" | "PENDING" | "VERIFIED" | "SETTLED">("ALL");
+
+  // Export Modal State
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
 
   const [isMounted, setIsMounted] = useState(false);
   useEffect(() => setIsMounted(true), []);
@@ -198,6 +202,7 @@ export const ManagerFinancialAudit = () => {
           period={period}
           setPeriod={setPeriod}
           onRefresh={fetchFinancialData}
+          onExport={() => setIsExportModalOpen(true)}
         />
       </div>
 
@@ -320,6 +325,11 @@ export const ManagerFinancialAudit = () => {
         )}
       </AnimatePresence>
 
+      <ExportReportModal 
+        isOpen={isExportModalOpen} 
+        onClose={() => setIsExportModalOpen(false)} 
+        period={period} 
+      />
       
       {/* Premium Center Modal for Ledger Details */}
       {isMounted && createPortal(

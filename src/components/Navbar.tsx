@@ -12,6 +12,7 @@ import SeruniLogo from "@/components/SeruniLogo";
 const navLinks = [
   { name: "BERANDA", href: "/" },
   { name: "MENU", href: "/produk" },
+  { name: "ORDER ONLINE", href: "/menu-online", isCta: true },
   { name: "KONTAK", href: "/contact" },
 ];
 
@@ -87,9 +88,13 @@ export default function Navbar() {
             <motion.button
               onClick={toggleMenu}
               whileTap={{ scale: 0.85 }}
-              className="flex items-center justify-center p-2 text-white hover:text-[#DC7331] transition-colors"
+              className={`flex items-center justify-center p-2.5 rounded-full transition-colors backdrop-blur-md ${
+                isPastSequence 
+                  ? "bg-white/10 border border-white/20 text-white hover:bg-white/20" 
+                  : "bg-black/5 border border-black/10 text-neutral-900 hover:bg-black/10"
+              }`}
             >
-              <Menu className="w-8 h-8" />
+              <Menu className="w-6 h-6" />
             </motion.button>
           </motion.div>
 
@@ -138,7 +143,11 @@ export default function Navbar() {
                         <a
                           href={link.href}
                           onClick={() => setIsOpen(false)}
-                          className="inline-block text-[13vw] sm:text-7xl lg:text-[4.5rem] xl:text-[5.5rem] font-black tracking-tighter uppercase leading-[0.9] text-white transition-all duration-500 transform active:scale-95 active:text-[#DC7331] md:hover:translate-x-5 md:hover:text-[#DC7331] md:hover:tracking-[0.05em] md:group-hover:blur-[4px] md:group-hover:opacity-30 md:hover:!blur-none md:hover:!opacity-100 m-0 p-0 origin-left"
+                          className={`inline-block whitespace-nowrap text-[11vw] sm:text-6xl lg:text-[4rem] xl:text-[4.5rem] font-black tracking-tighter uppercase leading-[0.9] transition-all duration-500 transform active:scale-95 md:hover:translate-x-5 md:hover:tracking-[0.05em] md:group-hover:blur-[4px] md:group-hover:opacity-30 md:hover:!blur-none md:hover:!opacity-100 m-0 p-0 origin-left ${
+                            link.isCta 
+                              ? "text-orange-500 active:text-orange-400 md:hover:text-orange-400" 
+                              : "text-white active:text-[#DC7331] md:hover:text-[#DC7331]"
+                          }`}
                         >
                           {link.name}
                         </a>

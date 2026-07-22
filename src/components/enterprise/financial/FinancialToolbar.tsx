@@ -8,9 +8,10 @@ interface FinancialToolbarProps {
   period: PeriodType;
   setPeriod: (period: PeriodType) => void;
   onRefresh: () => void;
+  onExport: () => void;
 }
 
-export const FinancialToolbar: React.FC<FinancialToolbarProps> = ({ period, setPeriod, onRefresh }) => {
+export const FinancialToolbar: React.FC<FinancialToolbarProps> = ({ period, setPeriod, onRefresh, onExport }) => {
   const periods: { value: PeriodType; label: string }[] = [
     { value: "today", label: "Hari Ini" },
     { value: "7days", label: "7 Hari" },
@@ -66,7 +67,10 @@ export const FinancialToolbar: React.FC<FinancialToolbarProps> = ({ period, setP
         >
           <RefreshCw className="w-4 h-4 text-white/70" />
         </button>
-        <button className="hidden md:flex items-center gap-2 px-4 py-3 bg-white text-black hover:bg-white/90 rounded-2xl font-bold text-sm transition-all active:scale-95 shrink-0">
+        <button 
+          onClick={onExport}
+          className="hidden md:flex items-center gap-2 px-4 py-3 bg-white text-black hover:bg-white/90 rounded-2xl font-bold text-sm transition-all active:scale-95 shrink-0"
+        >
           <Download className="w-4 h-4" />
           <span>Export</span>
         </button>

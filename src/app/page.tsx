@@ -28,7 +28,7 @@ export default function Home() {
         
         <Hero />
 
-        <div className="relative z-20 !bg-white shadow-none drop-shadow-none rounded-t-[32px] sm:rounded-t-[48px] overflow-hidden border-t border-neutral-100">
+        <div className="relative z-20 !bg-white shadow-none drop-shadow-none rounded-t-[32px] sm:rounded-t-[48px] overflow-hidden border-t border-neutral-100 pt-8 md:pt-16">
           
           <FeaturesBento />
 

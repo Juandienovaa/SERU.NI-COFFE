@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { useRealtimeOrders } from "@/hooks/useRealtimeOrders";
 import { 
   Package, 
   MapPin, 
@@ -19,8 +20,8 @@ import { motion } from "framer-motion";
 
 const STATUS_STAGES = [
   { id: 'WAITING_PAYMENT', label: 'Menunggu Pembayaran', icon: CreditCard, description: 'Selesaikan pembayaran Anda.' },
-  { id: 'WAITING_CONFIRMATION', label: 'Menunggu Konfirmasi', icon: CheckCircle2, description: 'Pembayaran berhasil, menunggu kasir.' },
-  { id: 'PROCESSING', label: 'Pesanan Diproses', icon: Package, description: 'Kasir telah mengkonfirmasi pesanan.' },
+  { id: 'WAITING_CONFIRMATION', label: 'Menunggu Konfirmasi', icon: CheckCircle2, description: 'Pembayaran berhasil, menunggu verifikasi kasir.' },
+  { id: 'PROCESSING', label: 'Pesanan Dikonfirmasi', icon: CheckCircle2, description: 'Kasir telah memverifikasi pembayaran.' },
   { id: 'PREPARING', label: 'Sedang Disiapkan', icon: ChefHat, description: 'Barista kami sedang menyiapkan pesanan.' },
   { id: 'READY_FOR_DELIVERY', label: 'Menunggu Kurir', icon: Package, description: 'Pesanan siap diantar.' },
   { id: 'ON_THE_WAY', label: 'Dalam Perjalanan', icon: Bike, description: 'Kurir sedang mengantar ke lokasi Anda.' },
@@ -29,39 +30,24 @@ const STATUS_STAGES = [
 
 export default function TrackingPage() {
   const router = useRouter();
-  const [order, setOrder] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const [trackingId, setTrackingId] = useState<string | null>(null);
 
   useEffect(() => {
-    const trackingId = sessionStorage.getItem("current_tracking_id");
-    if (!trackingId) {
+    const tid = sessionStorage.getItem("current_tracking_id");
+    if (!tid) {
       router.replace("/menu-online");
-      return;
+    } else {
+      setTrackingId(tid);
     }
-
-    const fetchOrder = async () => {
-      const { data, error } = await supabase
-        .from("online_orders")
-        .select("*, online_order_items(*)")
-        .eq("id", trackingId)
-        .single();
-        
-      if (data) setOrder(data);
-      setLoading(false);
-    };
-
-    fetchOrder();
-
-    const channel = supabase.channel('public:online_orders')
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'online_orders', filter: `id=eq.${trackingId}` }, (payload) => {
-        setOrder((prev: any) => ({ ...prev, ...payload.new }));
-      })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
   }, [router]);
+
+  const realtimeOptions = useMemo(() => {
+    return trackingId ? { filter: `id=eq.${trackingId}` } : undefined;
+  }, [trackingId]);
+
+  const { orders, loading, connectionStatus } = useRealtimeOrders(realtimeOptions);
+
+  const order = orders[0];
 
   if (loading) {
     return (
@@ -74,6 +60,15 @@ export default function TrackingPage() {
   if (!order) return null;
 
   const currentStageIndex = STATUS_STAGES.findIndex(s => s.id === order.order_status);
+  
+  const getETA = (idx: number) => {
+    if (idx <= 1) return "20 - 30 Menit";
+    if (idx === 2) return "15 - 20 Menit";
+    if (idx === 3) return "10 - 15 Menit";
+    if (idx === 4) return "5 - 10 Menit";
+    if (idx === 5) return "± 5 Menit";
+    return "Tiba";
+  };
   
   // Format dates
   const orderDate = new Date(order.created_at).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
@@ -103,7 +98,14 @@ export default function TrackingPage() {
         >
           <div>
             <p className="text-white/80 text-sm font-medium mb-1">Estimasi Tiba</p>
-            <p className="text-3xl font-black">{currentStageIndex >= 6 ? 'Tiba' : '15 - 25 Menit'}</p>
+            <motion.p 
+              key={currentStageIndex} 
+              initial={{ opacity: 0, y: -10 }} 
+              animate={{ opacity: 1, y: 0 }} 
+              className="text-3xl font-black"
+            >
+              {getETA(currentStageIndex)}
+            </motion.p>
           </div>
           <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center backdrop-blur-md">
             <Clock className="w-8 h-8 text-white" />
@@ -136,7 +138,7 @@ export default function TrackingPage() {
                 <div key={stage.id} className="relative flex gap-6 z-10">
                   <div className={`w-12 h-12 shrink-0 rounded-full flex items-center justify-center border-4 border-[#121217] transition-all duration-500 ${
                     isActive ? "bg-orange-500 text-white shadow-[0_0_20px_rgba(249,115,22,0.4)]" : "bg-neutral-800 text-neutral-500"
-                  }`}>
+                  } ${isCurrent ? "animate-pulse" : ""}`}>
                     <Icon className="w-5 h-5" />
                   </div>
                   

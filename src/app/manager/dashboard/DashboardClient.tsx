@@ -1,8 +1,9 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { ArrowUpRight, Users, Activity, BarChart3, Package, PackageCheck, AlertCircle, Clock } from "lucide-react";
+import { ArrowUpRight, Users, Activity, BarChart3, Package, PackageCheck, AlertCircle, Clock, ShoppingBag, Banknote } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { useRealtimeOrders } from "@/hooks/useRealtimeOrders";
 import RevenueChart from "@/components/enterprise/dashboard/RevenueChart";
 
 interface DashboardClientProps {
@@ -21,6 +22,7 @@ export default function DashboardClient({
   const [batches, setBatches] = useState(initialBatches || []);
   const [rawInventory, setRawInventory] = useState(initialRawInventory);
   const [finishedProducts, setFinishedProducts] = useState(initialFinishedProducts || []);
+  const { orders: onlineOrders } = useRealtimeOrders({ limit: 500 });
 
   useEffect(() => {
     const fetchFreshData = async () => {
@@ -83,6 +85,28 @@ export default function DashboardClient({
   const rawCupRemaining = rawInventory?.current_stock || 0;
   const finishedProductTotal = finishedProducts?.reduce((sum, item) => sum + (item.current_stock || 0), 0) || 0;
 
+  let onlineRevenueToday = 0;
+  let onlineOrdersToday = 0;
+  let waitingOrders = 0;
+  let preparingOrders = 0;
+
+  onlineOrders.forEach(order => {
+    const orderTime = new Date(order.created_at).getTime();
+    if (orderTime >= startOfToday) {
+      if (order.payment_status === "PAID") {
+        onlineRevenueToday += order.grand_total || 0;
+      }
+      onlineOrdersToday++;
+    }
+    
+    if (order.order_status === "WAITING_CONFIRMATION" || order.payment_status === "WAITING_CONFIRMATION") {
+      waitingOrders++;
+    }
+    if (order.order_status === "PREPARING" || order.order_status === "PROCESSING") {
+      preparingOrders++;
+    }
+  });
+
   return (
     <div className="p-8 md:p-12 w-full max-w-7xl mx-auto animate-in fade-in duration-500">
       <header className="mb-12">
@@ -98,6 +122,56 @@ export default function DashboardClient({
         </p>
       </header>
 
+      {/* Online Orders Stats Grid */}
+      <h2 className="text-xl font-bold text-white mb-6">Online Orders Today</h2>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+        <div className="bg-[#111113] border border-white/[0.05] rounded-3xl p-6 hover:border-white/[0.1] transition-colors relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-green-500/10 rounded-full blur-2xl -mr-10 -mt-10" />
+          <div className="relative z-10 flex flex-col justify-between h-full">
+            <div className="w-10 h-10 rounded-xl bg-green-500/10 flex items-center justify-center mb-6">
+              <Banknote className="w-5 h-5 text-green-500" />
+            </div>
+            <div>
+              <p className="text-xs font-bold text-neutral-400 uppercase tracking-widest mb-1">Live Revenue</p>
+              <h2 className="text-2xl md:text-3xl font-black text-white tracking-tighter">
+                {new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(onlineRevenueToday)}
+              </h2>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-[#111113] border border-white/[0.05] rounded-3xl p-6 hover:border-white/[0.1] transition-colors flex flex-col justify-between">
+          <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center mb-6">
+            <ShoppingBag className="w-5 h-5 text-blue-500" />
+          </div>
+          <div>
+            <p className="text-xs font-bold text-neutral-400 uppercase tracking-widest mb-1">Total Orders</p>
+            <h2 className="text-3xl font-black text-white tracking-tighter">{onlineOrdersToday}</h2>
+          </div>
+        </div>
+
+        <div className="bg-[#111113] border border-white/[0.05] rounded-3xl p-6 hover:border-white/[0.1] transition-colors flex flex-col justify-between">
+          <div className="w-10 h-10 rounded-xl bg-red-500/10 flex items-center justify-center mb-6">
+            <AlertCircle className="w-5 h-5 text-red-500" />
+          </div>
+          <div>
+            <p className="text-xs font-bold text-neutral-400 uppercase tracking-widest mb-1">Waiting Confirm</p>
+            <h2 className="text-3xl font-black text-white tracking-tighter">{waitingOrders}</h2>
+          </div>
+        </div>
+
+        <div className="bg-[#111113] border border-white/[0.05] rounded-3xl p-6 hover:border-white/[0.1] transition-colors flex flex-col justify-between">
+          <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center mb-6">
+            <Clock className="w-5 h-5 text-amber-500" />
+          </div>
+          <div>
+            <p className="text-xs font-bold text-neutral-400 uppercase tracking-widest mb-1">Preparing</p>
+            <h2 className="text-3xl font-black text-white tracking-tighter">{preparingOrders}</h2>
+          </div>
+        </div>
+      </div>
+
+      <h2 className="text-xl font-bold text-white mb-6">Offline / Batch Production</h2>
       {/* Bento Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {/* Card 1: Raw Cup Remaining */}

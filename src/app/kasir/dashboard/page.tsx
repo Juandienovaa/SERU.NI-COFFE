@@ -4,11 +4,19 @@ import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { supabase } from "@/lib/supabase";
 import { fetchAllProducts } from "@/services/productService";
+import { useRealtimeOrders } from "@/hooks/useRealtimeOrders";
+import { useCashierHardware } from "@/hooks/useCashierHardware";
 import { ProductCatalogItem } from "@/types/product";
-import { ShoppingCart, ListOrdered, CheckCircle2, Package, Car, X, Plus, Minus, Search, Bell, MapPin, Phone, Receipt } from "lucide-react";
+import { ShoppingCart, ListOrdered, CheckCircle2, Package, Car, X, Plus, Minus, Search, Bell, MapPin, Phone, Receipt, ChefHat } from "lucide-react";
 import { useRouter } from "next/navigation";
 import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
+import dynamic from 'next/dynamic';
+
+const MapPreview = dynamic(() => import('@/components/MapPreview'), { 
+  ssr: false, 
+  loading: () => <div className="w-full h-48 sm:h-56 bg-[#1A1A1A] animate-pulse rounded-xl border border-white/5 flex items-center justify-center"><span className="text-neutral-500 font-bold text-sm">Memuat Peta...</span></div> 
+});
 
 const MySwal = withReactContent(Swal);
 
@@ -60,9 +68,8 @@ export default function CentralCashierDashboard() {
   const [submittingOffline, setSubmittingOffline] = useState(false);
 
   // Online Orders State
-  const [onlineOrders, setOnlineOrders] = useState<any[]>([]);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const wakeLockRef = useRef<any>(null);
+  const { orders: onlineOrders, loading: onlineLoading, setOrders: setOnlineOrders } = useRealtimeOrders({ limit: 50 });
+  const { stopAudio, unlockAudio, audioUnlocked } = useCashierHardware(onlineOrders, selectedOrder?.id || null);
 
   useEffect(() => {
     const storedUser = localStorage.getItem("current_user");
@@ -82,71 +89,25 @@ export default function CentralCashierDashboard() {
       return;
     }
 
-    // Initialize Audio
-    audioRef.current = new Audio("/audio-loop.mp3");
-    audioRef.current.loop = true;
-
-    // Wake Lock & Notification Setup
-    const requestWakeLock = async () => {
-      if ('wakeLock' in navigator && document.visibilityState === 'visible') {
-        try {
-          wakeLockRef.current = await (navigator as any).wakeLock.request('screen');
-        } catch (err: any) {
-          console.warn("WakeLock Error:", err.name, err.message);
-        }
-      }
-    };
-    requestWakeLock();
-
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        requestWakeLock();
-        document.title = 'Kasir Dashboard';
-      }
-    };
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-
     if ("Notification" in window && Notification.permission === "default") {
       Notification.requestPermission();
     }
 
     async function loadData() {
-      const [prodRes, invRes, ordersRes] = await Promise.all([
+      const [prodRes, invRes] = await Promise.all([
         fetchAllProducts(),
-        supabase.from("product_inventory").select("*"),
-        supabase.from("online_orders").select("*, online_order_items(*)").order("created_at", { ascending: false }).limit(50)
+        supabase.from("product_inventory").select("*")
       ]);
       
       if (prodRes.success) setProducts(prodRes.data || []);
       if (invRes.data) setInventory(invRes.data || []);
-      if (ordersRes.data) {
-        setOnlineOrders(ordersRes.data || []);
-        checkAndPlayAudio(ordersRes.data || []);
-      }
       
       setLoading(false);
     }
     
     loadData();
 
-    // Supabase Realtime
-    const orderChannel = supabase.channel('central-cashier-orders')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'online_orders' }, (payload) => {
-        setOnlineOrders((prev: any[]) => {
-          const newOrders = [payload.new, ...prev];
-          checkAndPlayAudio(newOrders);
-          return newOrders;
-        });
-      })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'online_orders' }, (payload) => {
-        setOnlineOrders((prev: any[]) => {
-          const newOrders = prev.map(o => o.id === payload.new.id ? { ...o, ...payload.new } : o);
-          checkAndPlayAudio(newOrders);
-          return newOrders;
-        });
-      })
-      .subscribe();
-
+    // Supabase Realtime Inventory
     const invChannel = supabase.channel('central-cashier-inventory')
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'product_inventory' }, (payload) => {
         setInventory((prev: any[]) => prev.map(i => i.product_id === payload.new.product_id ? payload.new : i));
@@ -154,50 +115,12 @@ export default function CentralCashierDashboard() {
       .subscribe();
 
     return () => {
-      supabase.removeChannel(orderChannel);
       supabase.removeChannel(invChannel);
-      if (audioRef.current) {
-        audioRef.current.pause();
-      }
-      if (wakeLockRef.current) {
-        wakeLockRef.current.release();
-        wakeLockRef.current = null;
-      }
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [router]);
 
-  const checkAndPlayAudio = (orders: any[]) => {
-    // Check if there are any orders needing attention
-    const needsAttention = orders.some(o => 
-      o.payment_status === 'WAITING_PAYMENT' || o.payment_status === 'WAITING_CONFIRMATION'
-    );
-    
-    if (needsAttention && !selectedOrder) {
-      audioRef.current?.play().catch(e => console.warn("Audio autoplay blocked:", e));
-      
-      // Blink Title & Desktop Notification if hidden
-      if (document.visibilityState !== 'visible') {
-        document.title = '🚨 PESANAN BARU! 🚨';
-        if ("Notification" in window && Notification.permission === "granted") {
-          new Notification("Pesanan Baru Masuk!", {
-            body: "Ada pesanan online baru yang perlu segera diverifikasi dan diproses.",
-            icon: "/images/hero-section-logo.PNG"
-          });
-        }
-      }
-    } else {
-      audioRef.current?.pause();
-      if (audioRef.current) audioRef.current.currentTime = 0;
-      if (document.visibilityState === 'visible') document.title = 'Kasir Dashboard';
-    }
-  };
-
   const handleStopAudio = () => {
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.currentTime = 0;
-    }
+    stopAudio();
   };
 
   const handleOpenOrder = (order: any) => {
@@ -207,7 +130,6 @@ export default function CentralCashierDashboard() {
 
   const handleCloseOrder = () => {
     setSelectedOrder(null);
-    checkAndPlayAudio(onlineOrders); // Resume audio if there are still pending orders
   };
 
   const handleLogout = () => {
@@ -225,20 +147,16 @@ export default function CentralCashierDashboard() {
     handleStopAudio();
     await supabase.from("online_orders").update({ payment_status: paymentStatus, order_status: orderStatus }).eq("id", id);
     
-    // Update local state immediately for snappy UI
-    setOnlineOrders((prev: any[]) => prev.map(o => o.id === id ? { ...o, payment_status: paymentStatus, order_status: orderStatus } : o));
-    
+    // Optimistic update for UI feel (realtime will eventually sync)
+    setOnlineOrders((prev: any) => prev.map((o: any) => o.id === id ? { ...o, payment_status: paymentStatus, order_status: orderStatus } : o));
     if (selectedOrder?.id === id) {
       setSelectedOrder((prev: any) => prev ? { ...prev, payment_status: paymentStatus, order_status: orderStatus } : null);
     }
 
-    if (paymentStatus === "PAID") {
+    // Insert transaction only when payment is verified (PROCESSING)
+    if (paymentStatus === "PAID" && orderStatus === "PROCESSING") {
       const order = onlineOrders.find(o => o.id === id);
       if (order && order.online_order_items) {
-        for (const item of order.online_order_items) {
-          await supabase.rpc('rpc_allocate_inventory', { p_shift_id: '00000000-0000-0000-0000-000000000000', p_product_id: item.product_id, p_qty: item.qty });
-        }
-        
         const txIdMatch = order.notes?.match(/\[TXID:([^\]]+)\]/);
         if (txIdMatch) {
           await supabase.from("transactions").update({ payment_status: 'PAID', cashier_id: currentUser?.id || "KASIR" }).eq("id", txIdMatch[1]);
@@ -271,6 +189,18 @@ export default function CentralCashierDashboard() {
           }
         }
       }
+    }
+  };
+
+  const completeOnlineOrder = async (orderId: string) => {
+    handleStopAudio();
+    // This RPC handles inventory reduction and status update atomically
+    await supabase.rpc('rpc_complete_online_order', { p_order_id: orderId });
+    
+    // Optimistic Update
+    setOnlineOrders((prev: any) => prev.map((o: any) => o.id === orderId ? { ...o, order_status: 'COMPLETED' } : o));
+    if (selectedOrder?.id === orderId) {
+      setSelectedOrder((prev: any) => prev ? { ...prev, order_status: 'COMPLETED' } : null);
     }
   };
 
@@ -460,6 +390,14 @@ export default function CentralCashierDashboard() {
           </h1>
           
           <div className="flex items-center gap-6">
+            {!audioUnlocked && (
+              <button 
+                onClick={unlockAudio} 
+                className="bg-red-500/20 text-red-500 px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 hover:bg-red-500/30 transition-colors animate-pulse"
+              >
+                <Bell className="w-4 h-4" /> Enable Notification Alert
+              </button>
+            )}
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-neutral-800 overflow-hidden flex-shrink-0">
                 {currentUser?.avatar_url ? (
@@ -617,26 +555,61 @@ export default function CentralCashierDashboard() {
                 
                 <div className="flex-1 overflow-y-auto p-6 space-y-6">
                   
-                  {/* Customer Info */}
+                  {/* Customer Info & Quick Actions */}
                   <div className="bg-[#1A1A1A] p-5 rounded-2xl border border-white/5 space-y-4">
-                    <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 rounded-full bg-orange-500/20 text-orange-500 flex items-center justify-center font-black text-xl">
-                        {selectedOrder.customer_name.charAt(0)}
-                      </div>
-                      <div>
-                        <h4 className="font-bold text-white text-lg">{selectedOrder.customer_name}</h4>
-                        <div className="flex items-center gap-2 text-xs text-neutral-400">
-                          <Phone className="w-3 h-3" /> {selectedOrder.customer_phone}
+                    <div className="flex justify-between items-start">
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-full bg-orange-500/20 text-orange-500 flex items-center justify-center font-black text-xl shrink-0">
+                          {selectedOrder.customer_name?.charAt(0) || "C"}
+                        </div>
+                        <div>
+                          <h4 className="font-bold text-white text-lg">{selectedOrder.customer_name}</h4>
+                          <div className="flex items-center gap-2 text-xs text-neutral-400">
+                            <Phone className="w-3 h-3" /> {selectedOrder.customer_phone}
+                          </div>
                         </div>
                       </div>
+                      <a href={`https://wa.me/${selectedOrder.customer_phone?.replace(/^0/, '62')}?text=Halo%20${selectedOrder.customer_name},%20ini%20dari%20Seru.ni%20Coffee`} target="_blank" rel="noreferrer" className="w-10 h-10 rounded-full bg-green-500/10 text-green-500 hover:bg-green-500/20 flex items-center justify-center transition-colors">
+                        <Phone className="w-4 h-4" />
+                      </a>
                     </div>
                     
                     {selectedOrder.order_type === 'DELIVERY' && (
-                      <div className="pt-4 border-t border-white/5">
+                      <div className="pt-4 border-t border-white/5 space-y-4">
                         <div className="flex items-start gap-2 text-sm text-neutral-300">
                           <MapPin className="w-4 h-4 text-orange-500 shrink-0 mt-0.5" />
-                          <p className="leading-relaxed">{selectedOrder.address}</p>
+                          <p className="leading-relaxed">{selectedOrder.delivery_address || selectedOrder.address}</p>
                         </div>
+                        
+                        {/* Map Preview */}
+                        <MapPreview 
+                          lat={selectedOrder.latitude} 
+                          lng={selectedOrder.longitude} 
+                          customerName={selectedOrder.customer_name} 
+                        />
+                        
+                        {/* Delivery Actions */}
+                        <div className="grid grid-cols-2 gap-2">
+                          <a href={`https://www.google.com/maps?q=${selectedOrder.latitude},${selectedOrder.longitude}`} target="_blank" rel="noreferrer" className="py-2.5 bg-white/5 hover:bg-white/10 rounded-xl text-xs font-bold text-white flex items-center justify-center gap-2 transition-colors">
+                            Google Maps
+                          </a>
+                          <a href={`https://waze.com/ul?ll=${selectedOrder.latitude},${selectedOrder.longitude}&navigate=yes`} target="_blank" rel="noreferrer" className="py-2.5 bg-blue-500/10 hover:bg-blue-500/20 rounded-xl text-xs font-bold text-blue-400 flex items-center justify-center gap-2 transition-colors">
+                            Waze
+                          </a>
+                          <button onClick={() => { navigator.clipboard.writeText(selectedOrder.delivery_address || selectedOrder.address); Toast.fire({ icon: 'success', title: 'Alamat disalin' }) }} className="py-2.5 bg-white/5 hover:bg-white/10 rounded-xl text-xs font-bold text-neutral-400 flex items-center justify-center gap-2 transition-colors">
+                            Copy Alamat
+                          </button>
+                          <button onClick={() => { navigator.clipboard.writeText(`${selectedOrder.latitude}, ${selectedOrder.longitude}`); Toast.fire({ icon: 'success', title: 'Koordinat disalin' }) }} className="py-2.5 bg-white/5 hover:bg-white/10 rounded-xl text-xs font-bold text-neutral-400 flex items-center justify-center gap-2 transition-colors">
+                            Copy GPS
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {selectedOrder.notes && (
+                      <div className="pt-4 border-t border-white/5">
+                        <span className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest block mb-1">Catatan Pesanan</span>
+                        <p className="text-sm text-yellow-500/90 font-medium italic">"{selectedOrder.notes}"</p>
                       </div>
                     )}
                   </div>
@@ -688,6 +661,11 @@ export default function CentralCashierDashboard() {
                     </button>
                   )}
                   {selectedOrder.payment_status === 'PAID' && selectedOrder.order_status === 'PROCESSING' && (
+                    <button onClick={() => updateOrderStatus(selectedOrder.id, 'PAID', 'PREPARING')} className="w-full py-4 rounded-2xl bg-orange-500 text-white font-black text-sm uppercase tracking-widest hover:bg-orange-400 transition-colors flex items-center justify-center gap-2">
+                      <ChefHat className="w-5 h-5" /> Mulai Siapkan Pesanan
+                    </button>
+                  )}
+                  {selectedOrder.order_status === 'PREPARING' && (
                     <button onClick={() => updateOrderStatus(selectedOrder.id, 'PAID', 'READY_FOR_DELIVERY')} className="w-full py-4 rounded-2xl bg-orange-500 text-white font-black text-sm uppercase tracking-widest hover:bg-orange-400 transition-colors flex items-center justify-center gap-2">
                       <Package className="w-5 h-5" /> Pesanan Siap Dikirim
                     </button>
@@ -698,7 +676,7 @@ export default function CentralCashierDashboard() {
                     </button>
                   )}
                   {(selectedOrder.order_status === 'ON_THE_WAY' || (selectedOrder.order_status === 'READY_FOR_DELIVERY' && selectedOrder.order_type === 'TAKEAWAY')) && (
-                    <button onClick={() => updateOrderStatus(selectedOrder.id, 'PAID', 'COMPLETED')} className="w-full py-4 rounded-2xl bg-neutral-800 text-emerald-500 font-black text-sm uppercase tracking-widest hover:bg-neutral-700 transition-colors flex items-center justify-center gap-2">
+                    <button onClick={() => completeOnlineOrder(selectedOrder.id)} className="w-full py-4 rounded-2xl bg-neutral-800 text-emerald-500 font-black text-sm uppercase tracking-widest hover:bg-neutral-700 transition-colors flex items-center justify-center gap-2">
                       <CheckCircle2 className="w-5 h-5" /> Pesanan Selesai
                     </button>
                   )}
