@@ -88,11 +88,11 @@ export default function CentralCashierDashboard() {
 
     // Wake Lock & Notification Setup
     const requestWakeLock = async () => {
-      if ('wakeLock' in navigator) {
+      if ('wakeLock' in navigator && document.visibilityState === 'visible') {
         try {
           wakeLockRef.current = await (navigator as any).wakeLock.request('screen');
         } catch (err: any) {
-          console.error("WakeLock Error:", err.name, err.message);
+          console.warn("WakeLock Error:", err.name, err.message);
         }
       }
     };
