@@ -105,14 +105,13 @@ const Hero = () => {
             variants={itemVariants}
             className="flex flex-col sm:flex-row items-center gap-4 w-full sm:w-auto mb-12"
           >
-            <Link href="/menu-online" passHref legacyBehavior>
-              <a 
-                aria-label="Pesan Online"
-                className="group relative flex items-center justify-center gap-3 w-full sm:w-auto bg-orange-500 hover:bg-orange-400 text-white px-8 py-4 rounded-full font-bold text-sm transition-all duration-300 shadow-[0_0_20px_rgba(249,115,22,0.3)] hover:shadow-[0_0_30px_rgba(249,115,22,0.5)] hover:scale-[1.03]"
-              >
-                <ShoppingBag className="w-4 h-4" />
-                <span>Pesan Online</span>
-              </a>
+            <Link 
+              href="/menu-online" 
+              aria-label="Pesan Online"
+              className="group relative flex items-center justify-center gap-3 w-full sm:w-auto bg-orange-500 hover:bg-orange-400 text-white px-8 py-4 rounded-full font-bold text-sm transition-all duration-300 shadow-[0_0_20px_rgba(249,115,22,0.3)] hover:shadow-[0_0_30px_rgba(249,115,22,0.5)] hover:scale-[1.03]"
+            >
+              <ShoppingBag className="w-4 h-4" />
+              <span>Pesan Online</span>
             </Link>
             
             <a 
