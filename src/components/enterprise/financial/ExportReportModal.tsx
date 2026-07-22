@@ -33,11 +33,13 @@ export const ExportReportModal: React.FC<ExportReportModalProps> = ({ isOpen, on
         
         setProgress(30);
         
-        await pdfExecutiveGenerator.generateExecutiveReport(data, (currentStep, currentProgress) => {
+        const doc = await pdfExecutiveGenerator.generateExecutiveReport(data, (currentStep, currentProgress) => {
           setStep(currentStep);
           // Scale progress from 30 to 100 based on PDF generator progress
           setProgress(30 + (currentProgress * 0.7));
         });
+
+        doc.save(`Laporan-Eksekutif-Seruni-${period}.pdf`);
 
         setIsDone(true);
       } catch (e) {

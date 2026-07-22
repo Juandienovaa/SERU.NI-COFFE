@@ -39,6 +39,26 @@ export interface ReportDataPayload {
   online: any;
   ledger: any[];
   settlement: any[];
+  posCenterDaily: any[];
+  posCenterTotal: {
+    totalRevenue: number;
+    totalOrders: number;
+    totalCups: number;
+    grossCash: number;
+    grossQris: number;
+  };
+  crewTotal: {
+    totalRevenue: number;
+    totalOrders: number;
+    totalCups: number;
+    grossCash: number;
+    grossQris: number;
+  };
+  onlineTotal: {
+    totalRevenue: number;
+    totalOrders: number;
+    totalCups: number;
+  };
 }
 
 export const reportDataService = {
@@ -77,21 +97,21 @@ export const reportDataService = {
 
     // Fetch Transactions
     let trxQuery = supabase.from('transactions').select(`
-      id, invoice_number, created_at, payment_method, total_amount, subtotal, discount,
-      order_type, cashier_id, shift_id, outlet_id, status
+      id, invoice_number, created_at, payment_method, total_amount, subtotal_products, discount,
+      order_type, cashier_id, shift_id, outlet_id, payment_status, is_central_cashier
     `).eq('payment_status', 'PAID');
     
     let onlineQuery = supabase.from('online_orders').select(`
       id, invoice_number, created_at, payment_method, grand_total, subtotal,
-      customer_name, status, order_status
+      customer_name, payment_status, order_status
     `).in('payment_status', ['PAID', 'SETTLED']);
 
     let trxItemsQuery = supabase.from('transaction_items').select(`
-      id, transaction_id, product_id, product_name, quantity, unit_price, total_price
+      id, transaction_id, product_id, qty, price, subtotal, products(product_name)
     `);
 
     let onlineItemsQuery = supabase.from('online_order_items').select(`
-      id, online_order_id, product_id, product_name, quantity, unit_price, subtotal
+      id, order_id, product_id, product_name, quantity, price, subtotal
     `);
 
     if (startIso && endIso) {
@@ -133,6 +153,11 @@ export const reportDataService = {
 
     const allTransactions: any[] = [];
 
+    const posCenterDailyMap: Record<string, any> = {};
+    const posCenterTotal = { totalRevenue: 0, totalOrders: 0, totalCups: 0, grossCash: 0, grossQris: 0 };
+    const crewTotal = { totalRevenue: 0, totalOrders: 0, totalCups: 0, grossCash: 0, grossQris: 0 };
+    const onlineTotal = { totalRevenue: 0, totalOrders: 0, totalCups: 0 };
+
     // Process Offline Trx
     (trxs || []).forEach(trx => {
       const shift = shiftMap[trx.shift_id];
@@ -164,6 +189,25 @@ export const reportDataService = {
       crewMap[crewName].orders++;
       crewMap[crewName].gross += amount;
 
+      if (trx.is_central_cashier) {
+        posCenterTotal.totalRevenue += amount;
+        posCenterTotal.totalOrders++;
+        if (payment === 'CASH') posCenterTotal.grossCash += amount;
+        if (payment === 'QRIS') posCenterTotal.grossQris += amount;
+
+        const pDay = d.toLocaleDateString("id-ID");
+        if (!posCenterDailyMap[pDay]) posCenterDailyMap[pDay] = { date: pDay, trx: 0, cash: 0, qris: 0, total: 0 };
+        posCenterDailyMap[pDay].trx++;
+        posCenterDailyMap[pDay].total += amount;
+        if (payment === 'CASH') posCenterDailyMap[pDay].cash += amount;
+        if (payment === 'QRIS') posCenterDailyMap[pDay].qris += amount;
+      } else {
+        crewTotal.totalRevenue += amount;
+        crewTotal.totalOrders++;
+        if (payment === 'CASH') crewTotal.grossCash += amount;
+        if (payment === 'QRIS') crewTotal.grossQris += amount;
+      }
+
       allTransactions.push({
         invoice: trx.invoice_number,
         date: d.toLocaleDateString("id-ID"),
@@ -171,10 +215,11 @@ export const reportDataService = {
         crew: crewName,
         outlet: outlet,
         payment: payment,
-        subtotal: trx.subtotal,
+        subtotal: trx.subtotal_products,
         discount: trx.discount,
         total: amount,
-        type: 'OFFLINE'
+        type: 'OFFLINE',
+        is_central_cashier: trx.is_central_cashier || false
       });
     });
 
@@ -185,6 +230,9 @@ export const reportDataService = {
       totalRevenue += amount;
       if (payment === 'CASH') grossCash += amount;
       if (payment === 'QRIS') grossQris += amount;
+
+      onlineTotal.totalRevenue += amount;
+      onlineTotal.totalOrders++;
 
       const d = new Date(trx.created_at);
       const hour = d.getHours() + ":00";
@@ -214,22 +262,29 @@ export const reportDataService = {
       const crewName = userMap[shift?.user_id] || "Unknown";
       const outlet = shift?.outlet_id || trx.outlet_id || "Unknown";
 
-      const qty = item.quantity || 1;
+      const qty = item.qty || 1;
       totalCups += qty;
+      
+      if (trx.is_central_cashier) {
+        posCenterTotal.totalCups += qty;
+      } else {
+        crewTotal.totalCups += qty;
+      }
       
       if (outletMap[outlet]) outletMap[outlet].cups += qty;
       if (crewMap[crewName]) crewMap[crewName].cups += qty;
 
-      const pName = item.product_name;
+      const pName = item.products?.product_name || `Product ${item.product_id}`;
       if (!productMap[pName]) productMap[pName] = { name: pName, cups: 0, revenue: 0 };
       productMap[pName].cups += qty;
-      productMap[pName].revenue += item.total_price || 0;
+      productMap[pName].revenue += item.subtotal || 0;
     });
 
     // Process Items (Online)
     (onlineItems || []).forEach(item => {
       const qty = item.quantity || 1;
       totalCups += qty;
+      onlineTotal.totalCups += qty;
       const pName = item.product_name;
       if (!productMap[pName]) productMap[pName] = { name: pName, cups: 0, revenue: 0 };
       productMap[pName].cups += qty;
@@ -306,7 +361,11 @@ export const reportDataService = {
         bonus: o.cups * 350,
         difference: 0,
         status: "VERIFIED"
-      }))
+      })),
+      posCenterDaily: Object.values(posCenterDailyMap).reverse(),
+      posCenterTotal,
+      crewTotal,
+      onlineTotal
     };
 
     return reportData;
