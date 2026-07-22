@@ -1,12 +1,11 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Lenis from "lenis";
 import Image from "next/image";
 import { motion } from "framer-motion";
 import Preloader from "@/components/Preloader";
 import Navbar from "@/components/Navbar";
-import SequenceScroll from "@/components/SequenceScroll";
+import Hero from "@/components/Hero";
 import FeaturesBento from "@/components/FeaturesBento";
 import StatsCountUp from "@/components/StatsCountUp";
 import SeriesGallery from "@/components/SeriesGallery";
@@ -23,35 +22,6 @@ export default function Home() {
     return () => window.removeEventListener("resize", checkMobile);
   }, []);
 
-  // Initialize Lenis smooth scroll once preloading is completed
-  useEffect(() => {
-    if (!isLoaded) {
-      document.body.style.overflow = "hidden";
-      return;
-    }
-
-    document.body.style.overflow = "";
-
-    const lenis = new Lenis({
-      duration: 1.2,
-      easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
-      orientation: "vertical",
-      gestureOrientation: "vertical",
-      smoothWheel: true,
-    });
-
-    function raf(time: number) {
-      lenis.raf(time);
-      requestAnimationFrame(raf);
-    }
-
-    requestAnimationFrame(raf);
-
-    return () => {
-      lenis.destroy();
-    };
-  }, [isLoaded]);
-
   return (
     <>
       <Preloader onComplete={() => setIsLoaded(true)} />
@@ -60,9 +30,9 @@ export default function Home() {
         
         <Navbar />
         
-        <SequenceScroll />
+        <Hero />
 
-        <div className="-mt-[100vh] relative z-20 !bg-white shadow-none drop-shadow-none rounded-t-[32px] sm:rounded-t-[48px] overflow-hidden border-t border-neutral-100">
+        <div className="relative z-20 !bg-white shadow-none drop-shadow-none rounded-t-[32px] sm:rounded-t-[48px] overflow-hidden border-t border-neutral-100">
           
           <FeaturesBento />
 
