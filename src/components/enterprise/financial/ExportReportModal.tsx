@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { FileText, Loader2, CheckCircle2, Download } from "lucide-react";
+import { FileText, Loader2, CheckCircle2, Download, X } from "lucide-react";
 import { reportDataService } from "@/services/reportDataService";
 import { pdfExecutiveGenerator } from "@/services/pdfExecutiveGenerator";
 
@@ -48,10 +49,10 @@ export const ExportReportModal: React.FC<ExportReportModalProps> = ({ isOpen, on
     generate();
   }, [isOpen, period]);
 
-  return (
+  const modalContent = (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
           <motion.div 
             initial={{ opacity: 0 }} 
             animate={{ opacity: 1 }} 
@@ -64,6 +65,14 @@ export const ExportReportModal: React.FC<ExportReportModalProps> = ({ isOpen, on
             exit={{ scale: 0.9, opacity: 0, y: 20 }}
             className="relative bg-[#111111] border border-white/10 p-8 rounded-3xl w-full max-w-md shadow-2xl overflow-hidden"
           >
+            {/* Close Button */}
+            <button 
+              onClick={onClose}
+              className="absolute top-4 right-4 text-neutral-500 hover:text-white transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
             <div className="absolute top-0 left-0 w-full h-1 bg-white/5">
               <motion.div 
                 className="h-full bg-orange-500"
@@ -73,7 +82,7 @@ export const ExportReportModal: React.FC<ExportReportModalProps> = ({ isOpen, on
               />
             </div>
             
-            <div className="flex flex-col items-center text-center">
+            <div className="flex flex-col items-center text-center mt-4">
               <div className="w-16 h-16 rounded-full bg-orange-500/10 flex items-center justify-center mb-6 relative">
                 {isDone ? (
                   <CheckCircle2 className="w-8 h-8 text-orange-500" />
@@ -86,16 +95,16 @@ export const ExportReportModal: React.FC<ExportReportModalProps> = ({ isOpen, on
                 {isDone ? "Report Ready!" : "Generating Report"}
               </h2>
               
-              <p className="text-neutral-400 font-medium h-6">
+              <p className="text-neutral-400 font-medium h-6 mb-2">
                 {step}
               </p>
 
               {isDone && (
                 <button 
                   onClick={onClose}
-                  className="mt-8 w-full bg-orange-500 hover:bg-orange-600 text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-colors"
+                  className="mt-6 w-full bg-orange-500 hover:bg-orange-600 text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-colors"
                 >
-                  <Download className="w-4 h-4" /> Done
+                  <Download className="w-4 h-4" /> Selesai
                 </button>
               )}
             </div>
@@ -104,4 +113,10 @@ export const ExportReportModal: React.FC<ExportReportModalProps> = ({ isOpen, on
       )}
     </AnimatePresence>
   );
+
+  // Use Portal to escape any parent transform contexts that break fixed positioning
+  if (typeof document !== "undefined") {
+    return createPortal(modalContent, document.body);
+  }
+  return null;
 };
