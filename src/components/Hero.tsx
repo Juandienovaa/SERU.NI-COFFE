@@ -8,8 +8,11 @@ import { ShoppingBag, ArrowDown } from "lucide-react";
 
 export default function Hero() {
   return (
-    <section className="relative w-full h-screen min-h-[800px] flex flex-col md:flex-row overflow-hidden bg-white">
+    <section className="relative w-full h-[100dvh] flex flex-col md:flex-row overflow-hidden bg-white">
       
+      {/* Dark gradient for Navbar visibility */}
+      <div className="absolute top-0 left-0 w-full h-32 bg-gradient-to-b from-black/60 to-transparent z-30 pointer-events-none"></div>
+
       {/* Background Split */}
       <div className="absolute inset-0 flex flex-col md:flex-row z-0 pointer-events-none">
         {/* Left: White */}
@@ -26,7 +29,7 @@ export default function Hero() {
           initial={{ opacity: 0, x: -50 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-          className="w-full md:w-[55%] h-[50%] md:h-full flex flex-col justify-center pt-24 md:pt-0 md:pr-20"
+          className="w-full md:w-[55%] h-[50%] md:h-full flex flex-col justify-center px-6 md:pl-20 md:pr-12 pt-20 md:pt-0"
         >
           {/* Badge */}
           <div className="flex items-center gap-2 mb-6">
@@ -81,7 +84,7 @@ export default function Hero() {
           initial={{ opacity: 0, x: 50 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.8, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
-          className="w-full md:w-[45%] h-[50%] md:h-full flex flex-col justify-center items-end text-white pb-12 md:pb-0 pt-32 md:pt-0 relative"
+          className="w-full md:w-[45%] h-[50%] md:h-full flex flex-col justify-center items-end text-white px-6 md:pr-20 pb-12 md:pb-0 relative"
         >
           <div className="flex flex-col items-end gap-1 mb-12">
             <span className="text-sm font-medium text-orange-200 uppercase tracking-widest">Start From</span>
