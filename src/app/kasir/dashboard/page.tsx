@@ -62,6 +62,7 @@ export default function CentralCashierDashboard() {
   // Online Orders State
   const [onlineOrders, setOnlineOrders] = useState<any[]>([]);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const wakeLockRef = useRef<any>(null);
 
   useEffect(() => {
     const storedUser = localStorage.getItem("current_user");
@@ -84,6 +85,30 @@ export default function CentralCashierDashboard() {
     // Initialize Audio
     audioRef.current = new Audio("/audio-loop.mp3");
     audioRef.current.loop = true;
+
+    // Wake Lock & Notification Setup
+    const requestWakeLock = async () => {
+      if ('wakeLock' in navigator) {
+        try {
+          wakeLockRef.current = await (navigator as any).wakeLock.request('screen');
+        } catch (err: any) {
+          console.error("WakeLock Error:", err.name, err.message);
+        }
+      }
+    };
+    requestWakeLock();
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        requestWakeLock();
+        document.title = 'Kasir Dashboard';
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    if ("Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission();
+    }
 
     async function loadData() {
       const [prodRes, invRes, ordersRes] = await Promise.all([
@@ -134,8 +159,13 @@ export default function CentralCashierDashboard() {
       if (audioRef.current) {
         audioRef.current.pause();
       }
+      if (wakeLockRef.current) {
+        wakeLockRef.current.release();
+        wakeLockRef.current = null;
+      }
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, []);
+  }, [router]);
 
   const checkAndPlayAudio = (orders: any[]) => {
     // Check if there are any orders needing attention
@@ -145,9 +175,21 @@ export default function CentralCashierDashboard() {
     
     if (needsAttention && !selectedOrder) {
       audioRef.current?.play().catch(e => console.warn("Audio autoplay blocked:", e));
+      
+      // Blink Title & Desktop Notification if hidden
+      if (document.visibilityState !== 'visible') {
+        document.title = '🚨 PESANAN BARU! 🚨';
+        if ("Notification" in window && Notification.permission === "granted") {
+          new Notification("Pesanan Baru Masuk!", {
+            body: "Ada pesanan online baru yang perlu segera diverifikasi dan diproses.",
+            icon: "/images/hero-section-logo.PNG"
+          });
+        }
+      }
     } else {
       audioRef.current?.pause();
       if (audioRef.current) audioRef.current.currentTime = 0;
+      if (document.visibilityState === 'visible') document.title = 'Kasir Dashboard';
     }
   };
 
