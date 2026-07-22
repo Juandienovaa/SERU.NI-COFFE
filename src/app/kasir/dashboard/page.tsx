@@ -92,11 +92,11 @@ export default function CentralCashierDashboard() {
         supabase.from("online_orders").select("*, online_order_items(*)").order("created_at", { ascending: false }).limit(50)
       ]);
       
-      if (prodRes.success) setProducts(prodRes.data);
-      if (invRes.data) setInventory(invRes.data);
+      if (prodRes.success) setProducts(prodRes.data || []);
+      if (invRes.data) setInventory(invRes.data || []);
       if (ordersRes.data) {
-        setOnlineOrders(ordersRes.data);
-        checkAndPlayAudio(ordersRes.data);
+        setOnlineOrders(ordersRes.data || []);
+        checkAndPlayAudio(ordersRes.data || []);
       }
       
       setLoading(false);
@@ -326,9 +326,6 @@ export default function CentralCashierDashboard() {
           created_at: new Date().toISOString()
         }));
         if (txs.length > 0) await supabase.from("transaction_items").insert(txs);
-        
-        // Update the reference_id in movements to actual transaction_id if we want, 
-        // but since we already inserted, it's fine. 
       }
 
       setCart([]);
