@@ -17,27 +17,16 @@ async function testRealtime() {
 
   console.log('Subscribing to realtime...');
   const channel = supabase.channel('test_channel')
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'online_orders' }, (payload) => {
-      console.log('REALTIME EVENT RECEIVED:', payload.eventType);
+    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'online_orders' }, (payload) => {
+      console.log('REALTIME UPDATE RECEIVED:', payload);
     })
     .subscribe(async (status) => {
       console.log('Subscription status:', status);
       if (status === 'SUBSCRIBED') {
-        console.log('Triggering insert...');
-        const { error } = await supabase.from('online_orders').insert([{
-          invoice_number: 'TEST-RT',
-          order_type: 'DELIVERY',
-          customer_name: 'test',
-          customer_phone: '123',
-          delivery_address: 'test',
-          payment_method: 'QRIS',
-          subtotal: 0,
-          delivery_fee: 0,
-          discount: 0,
-          grand_total: 0
-        }]);
-        if (error) console.error('Insert error:', error);
-        else console.log('Insert sent.');
+        console.log('Triggering update...');
+        const { error } = await supabase.from('online_orders').update({ notes: 'test_realtime_' + Date.now() }).eq('id', order.id);
+        if (error) console.error('Update error:', error);
+        else console.log('Update sent.');
       }
     });
 

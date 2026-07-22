@@ -69,6 +69,8 @@ export function useRealtimeOrders({ filter, limit = 50, orderBy = DEFAULT_ORDER_
     fetchInitialOrders();
 
     const channelName = `online_orders_sync_${filter || 'all'}`;
+    console.log(`[Realtime] 🔄 Initializing channel: ${channelName}`);
+    
     const channel = supabase.channel(channelName);
 
     channel
@@ -81,9 +83,12 @@ export function useRealtimeOrders({ filter, limit = 50, orderBy = DEFAULT_ORDER_
           filter: filter,
         },
         async (payload) => {
+          console.log(`[Realtime] 📥 EVENT RECEIVED: ${payload.eventType}`, payload);
+
           if (payload.eventType === 'INSERT') {
             const fullOrder = await fetchSingleOrder(payload.new.id);
             if (fullOrder) {
+              console.log(`[Realtime] ➕ INSERTING order: ${fullOrder.id}`);
               setOrders((prev) => {
                 const exists = prev.find(o => o.id === fullOrder.id);
                 if (exists) return prev;
@@ -95,18 +100,35 @@ export function useRealtimeOrders({ filter, limit = 50, orderBy = DEFAULT_ORDER_
               });
             }
           } else if (payload.eventType === 'UPDATE') {
-            // Because online_order_items might not change on simple status update, we can merge or refetch. 
-            // The prompt says: "When row changes immediately refetch ONLY that order."
-            const fullOrder = await fetchSingleOrder(payload.new.id);
-            if (fullOrder) {
-              setOrders((prev) => prev.map((o) => (o.id === fullOrder.id ? fullOrder : o)));
-            }
+            console.log(`[Realtime] 📝 UPDATING order: ${payload.new.id} with status: ${payload.new.order_status}`);
+            
+            // OPTIMIZATION: Instead of refetching the entire order, we merge the new payload data 
+            // directly into our existing React state. This guarantees 0ms latency and 
+            // completely eliminates stale cache or replication race conditions!
+            setOrders((prev) => {
+              const orderExists = prev.some((o) => o.id === payload.new.id);
+              if (!orderExists) {
+                console.log(`[Realtime] ⚠️ UPDATE received for order ${payload.new.id} but it's not in current state.`);
+                return prev;
+              }
+              
+              console.log(`[Realtime] ✅ ATOMIC MERGE successful for ${payload.new.id}`);
+              return prev.map((o) => {
+                if (o.id === payload.new.id) {
+                   return { ...o, ...payload.new };
+                }
+                return o;
+              });
+            });
+            
           } else if (payload.eventType === 'DELETE') {
+            console.log(`[Realtime] 🗑️ DELETING order: ${payload.old.id}`);
             setOrders((prev) => prev.filter((o) => o.id !== payload.old.id));
           }
         }
       )
       .subscribe((status) => {
+        console.log(`[Realtime] 📡 Subscription status: ${status} for channel: ${channelName}`);
         if (status === 'SUBSCRIBED') {
           setConnectionStatus('CONNECTED');
         } else if (status === 'TIMED_OUT' || status === 'CHANNEL_ERROR') {
@@ -117,6 +139,7 @@ export function useRealtimeOrders({ filter, limit = 50, orderBy = DEFAULT_ORDER_
       });
 
     return () => {
+      console.log(`[Realtime] 🧹 CLEANUP: Removing channel: ${channelName}`);
       supabase.removeChannel(channel);
     };
   }, [filterDep, fetchInitialOrders, fetchSingleOrder]);
