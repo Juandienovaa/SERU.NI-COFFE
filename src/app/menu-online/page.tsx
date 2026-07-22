@@ -177,7 +177,7 @@ export default function MenuOnlinePage() {
         </div>
 
         {/* Right: Floating Cup */}
-        <div className="w-full lg:w-1/2 h-full flex items-center justify-center relative mt-16 lg:mt-0 z-10">
+        <div className="hidden lg:flex w-full lg:w-1/2 h-full items-center justify-center relative mt-16 lg:mt-0 z-10">
           <motion.div
             initial={{ opacity: 0, scale: 0.8, rotate: 10, y: 50 }}
             animate={{ opacity: 1, scale: 1, rotate: 0, y: 0 }}
