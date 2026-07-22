@@ -107,14 +107,14 @@ export default function CentralCashierDashboard() {
     // Supabase Realtime
     const orderChannel = supabase.channel('central-cashier-orders')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'online_orders' }, (payload) => {
-        setOnlineOrders(prev => {
+        setOnlineOrders((prev: any[]) => {
           const newOrders = [payload.new, ...prev];
           checkAndPlayAudio(newOrders);
           return newOrders;
         });
       })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'online_orders' }, (payload) => {
-        setOnlineOrders(prev => {
+        setOnlineOrders((prev: any[]) => {
           const newOrders = prev.map(o => o.id === payload.new.id ? { ...o, ...payload.new } : o);
           checkAndPlayAudio(newOrders);
           return newOrders;
@@ -124,7 +124,7 @@ export default function CentralCashierDashboard() {
 
     const invChannel = supabase.channel('central-cashier-inventory')
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'product_inventory' }, (payload) => {
-        setInventory(prev => prev.map(i => i.product_id === payload.new.product_id ? payload.new : i));
+        setInventory((prev: any[]) => prev.map(i => i.product_id === payload.new.product_id ? payload.new : i));
       })
       .subscribe();
 
@@ -184,10 +184,10 @@ export default function CentralCashierDashboard() {
     await supabase.from("online_orders").update({ payment_status: paymentStatus, order_status: orderStatus }).eq("id", id);
     
     // Update local state immediately for snappy UI
-    setOnlineOrders(prev => prev.map(o => o.id === id ? { ...o, payment_status: paymentStatus, order_status: orderStatus } : o));
+    setOnlineOrders((prev: any[]) => prev.map(o => o.id === id ? { ...o, payment_status: paymentStatus, order_status: orderStatus } : o));
     
     if (selectedOrder?.id === id) {
-      setSelectedOrder(prev => prev ? { ...prev, payment_status: paymentStatus, order_status: orderStatus } : null);
+      setSelectedOrder((prev: any) => prev ? { ...prev, payment_status: paymentStatus, order_status: orderStatus } : null);
     }
 
     if (paymentStatus === "PAID") {
@@ -239,7 +239,7 @@ export default function CentralCashierDashboard() {
     const inv = inventory.find(i => i.product_id === p.product_id);
     if (!inv || inv.current_stock <= 0) return;
 
-    setCart(prev => {
+    setCart((prev: { product: ProductCatalogItem; qty: number }[]) => {
       const existing = prev.find(item => item.product.product_id === p.product_id);
       if (existing) {
         if (existing.qty >= inv.current_stock) return prev;
@@ -252,7 +252,7 @@ export default function CentralCashierDashboard() {
   };
 
   const handleRemoveFromCart = (id: number) => {
-    setCart(prev => {
+    setCart((prev: { product: ProductCatalogItem; qty: number }[]) => {
       const existing = prev.find(item => item.product.product_id === id);
       if (existing && existing.qty > 1) {
         return prev.map(item => item.product.product_id === id ? { ...item, qty: item.qty - 1 } : item);
@@ -261,7 +261,7 @@ export default function CentralCashierDashboard() {
     });
   };
 
-  const offlineSubtotal = cart.reduce((acc, item) => acc + (item.product.price * item.qty), 0);
+  const offlineSubtotal = cart.reduce((acc, item) => acc + ((item.product.price || 0) * item.qty), 0);
 
   const handleOfflineCheckout = async (method: 'CASH' | 'QRIS') => {
     if (cart.length === 0) return;
@@ -321,8 +321,8 @@ export default function CentralCashierDashboard() {
           transaction_id: txMaster.id,
           product_id: item.product.product_id,
           qty: item.qty,
-          price: item.product.price,
-          subtotal: item.product.price * item.qty,
+          price: item.product.price || 0,
+          subtotal: (item.product.price || 0) * item.qty,
           created_at: new Date().toISOString()
         }));
         if (txs.length > 0) await supabase.from("transaction_items").insert(txs);
@@ -502,7 +502,7 @@ export default function CentralCashierDashboard() {
                         </div>
                         <h3 className="font-bold text-sm text-white truncate">{p.product_name}</h3>
                         <div className="flex justify-between items-center mt-2">
-                          <span className="font-black text-orange-400">{formatRupiah(p.price)}</span>
+                          <span className="font-black text-orange-400">{formatRupiah(p.price || 0)}</span>
                           <span className="text-[10px] font-bold text-neutral-500">Stok: {stock}</span>
                         </div>
                       </button>
@@ -519,7 +519,7 @@ export default function CentralCashierDashboard() {
                       <div key={item.product.product_id} className="flex items-center justify-between">
                         <div>
                           <div className="font-bold text-sm">{item.product.product_name}</div>
-                          <div className="text-xs text-neutral-400">{formatRupiah(item.product.price)}</div>
+                          <div className="text-xs text-neutral-400">{formatRupiah(item.product.price || 0)}</div>
                         </div>
                         <div className="flex items-center gap-3 bg-[#1A1A1A] rounded-full p-1 border border-white/5">
                           <button onClick={() => handleRemoveFromCart(item.product.product_id)} className="w-6 h-6 rounded-full bg-neutral-800 flex items-center justify-center"><Minus className="w-3 h-3" /></button>
