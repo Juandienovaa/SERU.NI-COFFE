@@ -118,8 +118,9 @@ export default function WorkerDashboard() {
         setAvailableStocks(invData);
         
         if (productsRes.success && productsRes.data) {
-          setProducts(productsRes.data);
-          setStocks(prev => prev.length === 0 ? productsRes.data.map(p => ({ productId: p.product_id, stock: 0 })) : prev);
+          const fetchedProducts = productsRes.data;
+          setProducts(fetchedProducts);
+          setStocks(prev => prev.length === 0 ? fetchedProducts.map(p => ({ productId: p.product_id, stock: 0 })) : prev);
         }
 
         if (activeUserShift && activeUserShift.id) {
@@ -572,8 +573,8 @@ export default function WorkerDashboard() {
                       >
                         {/* Image */}
                         <div className="w-[100px] h-[100px] rounded-[18px] bg-[#09090B] border border-white/5 overflow-hidden shrink-0 relative">
-                          {p.image_url || p.image ? (
-                             <img src={p.image_url || p.image} alt={p.product_name} className={`w-full h-full object-cover ${isEmpty ? 'grayscale' : ''}`} loading="lazy" />
+                          {p.image ? (
+                               <img src={p.image} alt={p.product_name} className={`w-full h-full object-cover ${isEmpty ? 'grayscale' : ''}`} loading="lazy" />
                           ) : (
                              <div className="w-full h-full flex items-center justify-center text-zinc-700 font-bold text-xs">No Image</div>
                           )}
