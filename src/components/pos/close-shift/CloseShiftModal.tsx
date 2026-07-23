@@ -7,6 +7,7 @@ import { InventoryItemSnapshot, CloseShiftPayload } from "@/types/shift";
 import { calculateShiftClosingFinancials, calculateInventoryTotals } from "@/utils/financial";
 import { tutupShift } from "@/services/backendService";
 import { getShiftCheckoutSummary } from "@/services/shiftSummary";
+import { fetchAllProducts } from "@/services/productService";
 
 interface CloseShiftModalProps {
   isOpen: boolean;
@@ -40,13 +41,27 @@ export default function CloseShiftModal({
   // Secure data loaded from backend
   const [loadingSummary, setLoadingSummary] = useState(false);
   const [summaryData, setSummaryData] = useState<any>(null);
+  const [productNames, setProductNames] = useState<Record<number, string>>({});
 
   useEffect(() => {
     if (isOpen && shiftId) {
       setLoadingSummary(true);
       setErrorMessage(null);
-      getShiftCheckoutSummary(shiftId)
-        .then((data) => setSummaryData(data))
+      
+      Promise.all([
+        getShiftCheckoutSummary(shiftId),
+        fetchAllProducts()
+      ])
+        .then(([summary, productsRes]) => {
+          setSummaryData(summary);
+          if (productsRes.success && productsRes.data) {
+            const namesMap: Record<number, string> = {};
+            productsRes.data.forEach(p => {
+              namesMap[p.product_id] = p.product_name;
+            });
+            setProductNames(namesMap);
+          }
+        })
         .catch((err) => {
           console.error("Gagal memuat ringkasan shift:", err);
           setErrorMessage("Gagal memuat ringkasan shift dari database.");
@@ -248,7 +263,7 @@ export default function CloseShiftModal({
                 <div className="max-h-32 overflow-y-auto mt-2 pt-2 border-t border-neutral-800 space-y-1.5 text-left text-[11px] pr-1">
                   {(inventoryData || []).map((item, idx) => (
                     <div key={idx} className="flex justify-between text-neutral-300">
-                      <span className="truncate pr-2">{item.nama || `Produk #${item.product_id}`}</span>
+                      <span className="truncate pr-2">{productNames[item.product_id] || item.nama || `Produk #${item.product_id}`}</span>
                       <span className="font-mono font-bold text-neutral-400 shrink-0">
                         {item.sisa || 0} pcs
                       </span>
