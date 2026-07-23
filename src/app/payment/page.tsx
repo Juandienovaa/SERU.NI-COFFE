@@ -115,7 +115,7 @@ export default function PaymentPage() {
             <img 
               src="/qris.jpeg" 
               alt="QRIS Seru.ni"
-              className="w-full max-w-sm mx-auto rounded-xl shadow-md"
+              className="w-full max-w-[250px] aspect-square object-contain bg-white p-2 rounded-xl mx-auto shadow-md"
             />
           </div>
 
