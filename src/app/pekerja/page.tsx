@@ -3,10 +3,11 @@
 // Pastikan halaman ini TIDAK PERNAH di-cache oleh Next.js 15
 export const dynamic = 'force-dynamic';
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "motion/react";
-import { products } from "@/app/produk/data";
+import { fetchAllProducts } from "@/services/productService";
+import { ProductCatalogItem } from "@/types/product";
 import { 
   getOutlets, 
   getLiveStockByOutlet, 
@@ -58,9 +59,9 @@ export default function WorkerDashboard() {
   const [shiftType, setShiftType] = useState<"pagi" | "malam">("pagi");
   const [availableStocks, setAvailableStocks] = useState<any[]>([]);
   
-  const [stocks, setStocks] = useState<{ productId: number; stock: number }[]>(
-    products.map(p => ({ productId: p.id, stock: 0 }))
-  );
+  const [products, setProducts] = useState<ProductCatalogItem[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [stocks, setStocks] = useState<{ productId: number; stock: number }[]>([]);
 
   const [activeShift, setActiveShift] = useState<any>(null);
   const [liveInventory, setLiveInventory] = useState<any[]>([]);
@@ -105,15 +106,21 @@ export default function WorkerDashboard() {
         }
 
         // 2. Verifikasi dengan Supabase sebagai Single Source of Truth
-        const [outletsData, activeUserShift, invData] = await Promise.all([
+        const [outletsData, activeUserShift, invData, productsRes] = await Promise.all([
           getOutlets().catch(() => []),
           checkActiveShiftInSupabase(userId, crewName).catch(() => null),
-          getAvailableStockForShift().catch(() => [])
+          getAvailableStockForShift().catch(() => []),
+          fetchAllProducts().catch(() => ({ success: false, data: [] }))
         ]);
 
         if (!isMounted) return;
         setOutlets(outletsData);
         setAvailableStocks(invData);
+        
+        if (productsRes.success && productsRes.data) {
+          setProducts(productsRes.data);
+          setStocks(prev => prev.length === 0 ? productsRes.data.map(p => ({ productId: p.id, stock: 0 })) : prev);
+        }
 
         if (activeUserShift && activeUserShift.id) {
           // --- SHIFT TERBUKA DITEMUKAN DI SUPABASE ---
@@ -191,6 +198,11 @@ export default function WorkerDashboard() {
     if (num > maxStock) num = maxStock;
     setStocks(prev => prev.map(s => s.productId === productId ? { ...s, stock: num } : s));
   };
+
+  const filteredProducts = useMemo(() => {
+    if (!searchQuery) return products;
+    return products.filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()));
+  }, [products, searchQuery]);
 
   // Fungsi Buka Shift (Fase Validasi)
   const handleBukaShift = async (e: React.FormEvent) => {
@@ -475,151 +487,175 @@ export default function WorkerDashboard() {
         <AnimatePresence mode="wait">
           {!activeShift ? (
             /* ================= STATE 1: BUKA SHIFT ================= */
-            <motion.div key="buka-shift" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="w-full fixed inset-0 z-50 bg-zinc-950 overflow-hidden flex flex-col items-center">
-              <div className="w-full max-w-7xl h-full flex flex-col p-6 gap-6">
-                
-                {/* Header Compact */}
-                <div className="flex items-center gap-4 shrink-0 px-2 pt-2">
-                  <div className="w-10 h-10 rounded-full bg-orange-500/10 flex items-center justify-center">
-                    <Store className="w-5 h-5 text-orange-500" />
+            <motion.div key="buka-shift" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="w-full min-h-screen bg-[#09090B] flex flex-col relative pb-28">
+              
+              {/* Sticky Header Baru */}
+              <div className="sticky top-0 z-40 bg-[#09090B]/80 backdrop-blur-xl border-b border-white/5 px-6 py-4 flex justify-between items-center">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-neutral-900 border border-white/10 flex items-center justify-center shadow-inner">
+                    <User className="w-5 h-5 text-[#F97316]" />
                   </div>
                   <div>
-                    <h1 className="text-xl font-bold text-white tracking-tight">Persiapan Shift Baru</h1>
-                    <p className="text-xs text-zinc-500">Ambil dan validasi stok awal produk.</p>
+                    <h2 className="text-sm font-bold text-white tracking-wide">{workerName || "Crew"}</h2>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"></span>
+                      <p className="text-[10px] text-zinc-400 font-medium uppercase tracking-widest">{selectedOutlet || "Memuat..."}</p>
+                    </div>
+                  </div>
+                </div>
+                <button onClick={handleLogout} className="w-10 h-10 rounded-full bg-white/5 hover:bg-red-500/10 flex items-center justify-center text-zinc-400 hover:text-red-500 transition-colors active:scale-95">
+                  <LogOut className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="flex-1 w-full max-w-lg mx-auto px-5 pt-6 flex flex-col gap-8">
+                
+                {/* Summary Section */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-[#18181B] border border-white/5 rounded-[24px] p-5 shadow-[0_4px_24px_rgba(0,0,0,0.2)]">
+                    <p className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-1">Produk Dipilih</p>
+                    <p className="text-[34px] font-black text-white leading-none tracking-tighter">{stocks.filter(s => s.stock > 0).length} <span className="text-lg text-zinc-600 font-bold tracking-normal">Item</span></p>
+                  </div>
+                  <div className="bg-[#18181B] border border-white/5 rounded-[24px] p-5 shadow-[0_4px_24px_rgba(0,0,0,0.2)]">
+                    <p className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-1">Total Dibawa</p>
+                    <p className="text-[34px] font-black text-[#F97316] leading-none tracking-tighter">{stocks.reduce((acc, curr) => acc + curr.stock, 0)} <span className="text-lg text-zinc-600 font-bold tracking-normal">Cup</span></p>
                   </div>
                 </div>
 
-                <form onSubmit={handleBukaShift} className="grid grid-cols-1 lg:grid-cols-12 gap-6 flex-1 min-h-0">
-                  
-                  {/* LEFT PANEL */}
-                  <div className="lg:col-span-5 flex flex-col gap-4 overflow-y-auto pr-2 pb-24 lg:pb-0">
-                    
-                    {/* Lokasi Card */}
-                    <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 shadow-lg flex items-center justify-between">
-                      <div>
-                        <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1">Lokasi Shift</p>
-                        <h3 className="text-lg font-bold text-white">{selectedOutlet || "Memuat..."}</h3>
-                      </div>
-                      <div className="px-3 py-1 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-bold rounded-lg uppercase">
-                        Active
-                      </div>
+                {/* Sticky Search Bar */}
+                <div className="sticky top-[76px] z-30 pt-2 pb-4 bg-[#09090B]/90 backdrop-blur-xl">
+                  <div className="relative w-full group">
+                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                      <Search className="w-5 h-5 text-zinc-500 group-focus-within:text-[#F97316] transition-colors" />
                     </div>
-
-                    {/* Informasi Crew Card */}
-                    <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 shadow-lg space-y-4">
-                      <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2 border-b border-zinc-800 pb-2">Informasi Crew</p>
-                      <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-xl bg-zinc-800 flex items-center justify-center">
-                          <User className="w-6 h-6 text-zinc-400" />
-                        </div>
-                        <div>
-                          <p className="text-sm font-bold text-white">{workerName || "Crew"}</p>
-                          <p className="text-xs text-zinc-500" suppressHydrationWarning>Waktu: {new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} WIB</p>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Ringkasan Card */}
-                    <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 shadow-lg mt-auto mb-4 border-t-2 border-t-orange-500">
-                      <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-4">Ringkasan Pengambilan</p>
-                      
-                      <div className="flex justify-between items-center mb-3">
-                        <span className="text-sm text-zinc-400">Total SKU Dipilih</span>
-                        <span className="text-sm font-bold text-white">{stocks.filter(s => s.stock > 0).length} Produk</span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm text-zinc-400">Total Cup Dibawa</span>
-                        <span className="text-xl font-black text-orange-400">{stocks.reduce((acc, curr) => acc + curr.stock, 0)} Cup</span>
-                      </div>
-                    </div>
-
-                    <button type="submit" disabled={loading || stocks.reduce((acc, curr) => acc + curr.stock, 0) === 0} className="w-full py-4 bg-orange-600 hover:bg-orange-500 active:scale-[0.98] transition-all text-white font-bold rounded-2xl shadow-xl shadow-orange-900/20 disabled:opacity-50 disabled:cursor-not-allowed shrink-0">
-                      {loading ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : "BUKA SHIFT"}
-                    </button>
+                    <input
+                      type="text"
+                      placeholder="Cari Produk..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="w-full bg-[#18181B] border border-white/5 text-white rounded-[20px] py-4 pl-12 pr-4 shadow-sm focus:outline-none focus:border-[#F97316]/50 focus:ring-1 focus:ring-[#F97316]/50 transition-all font-medium placeholder:text-zinc-600"
+                    />
+                    {searchQuery && (
+                      <button type="button" onClick={() => setSearchQuery("")} className="absolute inset-y-0 right-0 pr-4 flex items-center text-zinc-500 hover:text-white">
+                        <X className="w-4 h-4" />
+                      </button>
+                    )}
                   </div>
+                </div>
 
-                  {/* RIGHT PANEL (Scrollable Products) */}
-                  <div className="lg:col-span-7 bg-zinc-900 border border-zinc-800 rounded-3xl p-6 shadow-xl flex flex-col h-full min-h-0">
+                {/* Product List */}
+                <div className="flex flex-col gap-6">
+                  {filteredProducts.map((p, index) => {
+                    const invData = availableStocks.find(a => a.product_id === p.id);
+                    const currentStock = invData ? invData.current_stock : 0;
+                    const selectedStock = stocks.find(s => s.productId === p.id)?.stock || 0;
+                    const sisaMaster = currentStock - selectedStock;
+                    const isEmpty = currentStock === 0;
+                    const isLowStock = currentStock > 0 && currentStock <= 10;
+                    const isMaxed = selectedStock >= currentStock;
                     
-                    <div className="flex justify-between items-end mb-6 shrink-0">
-                      <div>
-                        <h2 className="text-sm font-bold text-white mb-1">Ambil Produk Untuk Shift</h2>
-                        <p className="text-xs text-zinc-500">Pilih jumlah stok yang akan dibawa ke gerobak.</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-0.5">Total Stok Master</p>
-                        <p className="text-sm font-bold text-white font-mono">{availableStocks.reduce((sum, item) => sum + item.current_stock, 0)} Cup</p>
-                      </div>
-                    </div>
+                    return (
+                      <motion.div 
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: Math.min(index * 0.05, 0.5), duration: 0.3 }}
+                        key={p.id} 
+                        className={`w-full bg-[#18181B] border ${isEmpty ? 'border-red-500/10 opacity-70' : isMaxed ? 'border-[#F97316]/30' : 'border-white/5'} rounded-[24px] p-5 flex items-center gap-5 shadow-[0_8px_32px_rgba(0,0,0,0.12)] hover:shadow-[0_8px_32px_rgba(249,115,22,0.05)] transition-all`}
+                      >
+                        {/* Image */}
+                        <div className="w-[100px] h-[100px] rounded-[18px] bg-[#09090B] border border-white/5 overflow-hidden shrink-0 relative">
+                          {p.image_url || p.image ? (
+                             <img src={p.image_url || p.image} alt={p.name} className={`w-full h-full object-cover ${isEmpty ? 'grayscale' : ''}`} loading="lazy" />
+                          ) : (
+                             <div className="w-full h-full flex items-center justify-center text-zinc-700 font-bold text-xs">No Image</div>
+                          )}
+                          {isEmpty && <div className="absolute inset-0 bg-black/50 flex items-center justify-center"><span className="text-[10px] font-black text-white tracking-widest bg-red-600 px-2 py-1 rounded">HABIS</span></div>}
+                        </div>
 
-                    <div className="overflow-y-auto pr-2 space-y-3 pb-24 lg:pb-0">
-                      {products.map((p) => {
-                        const invData = availableStocks.find(a => a.product_id === p.id);
-                        const currentStock = invData ? invData.current_stock : 0;
-                        const selectedStock = stocks.find(s => s.productId === p.id)?.stock || 0;
-                        const sisaMaster = currentStock - selectedStock;
-                        const isEmpty = currentStock === 0;
-                        const isLowStock = currentStock > 0 && currentStock <= 10;
-                        const isMaxed = selectedStock >= currentStock;
+                        {/* Content */}
+                        <div className="flex-1 flex flex-col justify-center min-w-0 py-1">
+                          <h3 className="text-[18px] font-bold text-white leading-tight mb-2 truncate pr-2">{p.name}</h3>
+                          
+                          <div className="flex flex-wrap items-center gap-2 mb-3">
+                            {isEmpty ? (
+                              <span className="px-2 py-1 rounded-md text-[10px] font-black uppercase tracking-widest bg-red-500/10 text-red-500 border border-red-500/20">Habis</span>
+                            ) : isLowStock ? (
+                              <span className="px-2 py-1 rounded-md text-[10px] font-black uppercase tracking-widest bg-yellow-500/10 text-yellow-500 border border-yellow-500/20">Menipis</span>
+                            ) : (
+                              <span className="px-2 py-1 rounded-md text-[10px] font-black uppercase tracking-widest bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Ready</span>
+                            )}
+                            <span className="text-[11px] font-bold text-zinc-500 uppercase tracking-widest bg-zinc-900 px-2 py-1 rounded-md border border-zinc-800">
+                              Master: <span className={sisaMaster < 10 && !isEmpty ? 'text-red-400' : 'text-zinc-300'}>{sisaMaster} Cup</span>
+                            </span>
+                          </div>
 
-                        return (
-                          <div key={p.id} className={`w-full flex items-center p-3 rounded-2xl border transition-all ${isEmpty ? 'opacity-50 border-red-500/20 bg-red-950/10 grayscale' : isMaxed ? 'border-orange-500/30 bg-orange-950/10' : 'border-zinc-800 bg-zinc-950/50'}`}>
-                            <div className="w-14 h-14 rounded-xl overflow-hidden shrink-0 bg-zinc-900 border border-zinc-800">
-                              <img src={p.image} alt={p.name} className="w-full h-full object-cover" />
-                            </div>
-                            <div className="flex-1 ml-4 min-w-0 pr-2">
-                              <div className="flex items-center gap-2 mb-1">
-                                <h4 className="text-sm font-bold text-white truncate">{p.name}</h4>
-                                {isEmpty ? (
-                                  <span className="px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-red-500/10 text-red-500 border border-red-500/20">Habis</span>
-                                ) : isLowStock ? (
-                                  <span className="px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-orange-500/10 text-orange-500 border border-orange-500/20">Low</span>
-                                ) : (
-                                  <span className="px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">Ready</span>
-                                )}
-                              </div>
-                              <p className="text-[11px] text-zinc-500">Sisa Master: <span className={`font-mono font-bold ${sisaMaster < 10 && !isEmpty ? 'text-red-400' : 'text-zinc-400'}`}>{sisaMaster} Cup</span></p>
+                          {/* Stepper */}
+                          <div className="flex items-center gap-2 mt-auto">
+                            <motion.button 
+                              whileTap={{ scale: 0.9 }}
+                              type="button" 
+                              disabled={selectedStock <= 0 || isEmpty}
+                              onClick={() => decrementStock(p.id)} 
+                              className="w-11 h-11 rounded-2xl bg-[#09090B] border border-white/5 hover:bg-zinc-800 disabled:opacity-30 disabled:pointer-events-none flex items-center justify-center text-zinc-400 transition-colors shadow-inner shrink-0"
+                            >
+                              <Minus className="w-5 h-5" />
+                            </motion.button>
+                            
+                            <div className="w-16 text-center">
+                              <input
+                                type="number"
+                                inputMode="numeric"
+                                value={selectedStock || ''}
+                                onChange={(e) => handleStockChange(p.id, e.target.value, currentStock)}
+                                onBlur={(e) => {
+                                  if (!e.target.value) handleStockChange(p.id, "0", currentStock);
+                                }}
+                                disabled={isEmpty}
+                                placeholder="0"
+                                className="w-full bg-transparent text-center text-[22px] font-black text-white focus:outline-none disabled:opacity-50"
+                              />
                             </div>
                             
-                            {/* Stepper */}
-                            <div className="flex items-center gap-1.5 shrink-0">
-                              <button 
-                                type="button" 
-                                disabled={selectedStock <= 0 || isEmpty}
-                                onClick={() => decrementStock(p.id)} 
-                                className="w-8 h-8 rounded-lg bg-zinc-800 hover:bg-zinc-700 disabled:opacity-30 flex items-center justify-center text-zinc-300 transition-colors"
-                              >
-                                <Minus className="w-3.5 h-3.5" />
-                              </button>
-                              <div className="w-12 text-center">
-                                <input
-                                  type="number"
-                                  inputMode="numeric"
-                                  value={selectedStock || ''}
-                                  onChange={(e) => handleStockChange(p.id, e.target.value, currentStock)}
-                                  onBlur={(e) => {
-                                    if (!e.target.value) handleStockChange(p.id, "0", currentStock);
-                                  }}
-                                  disabled={isEmpty}
-                                  placeholder="0"
-                                  className="w-full bg-zinc-900/50 text-center text-sm font-black text-white font-mono focus:outline-none focus:ring-1 focus:ring-orange-500 rounded py-1 border border-zinc-800 disabled:opacity-50"
-                                />
-                              </div>
-                              <button 
-                                type="button" 
-                                disabled={isMaxed || isEmpty}
-                                onClick={() => incrementStock(p.id)} 
-                                className="w-8 h-8 rounded-lg bg-orange-500/20 hover:bg-orange-500/30 border border-orange-500/20 disabled:opacity-30 disabled:border-transparent disabled:bg-zinc-800 disabled:hover:bg-zinc-800 flex items-center justify-center text-orange-500 transition-colors"
-                              >
-                                <Plus className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
+                            <motion.button 
+                              whileTap={{ scale: 0.9 }}
+                              type="button" 
+                              disabled={isMaxed || isEmpty}
+                              onClick={() => incrementStock(p.id)} 
+                              className="w-11 h-11 rounded-2xl bg-[#F97316]/10 border border-[#F97316]/20 hover:bg-[#F97316]/20 disabled:opacity-30 disabled:border-transparent disabled:bg-[#09090B] disabled:pointer-events-none flex items-center justify-center text-[#F97316] transition-colors shrink-0"
+                            >
+                              <Plus className="w-5 h-5" />
+                            </motion.button>
                           </div>
-                        );
-                      })}
+                        </div>
+                      </motion.div>
+                    );
+                  })}
+                  
+                  {filteredProducts.length === 0 && (
+                    <div className="text-center py-12 text-zinc-600 font-medium">
+                      <Search className="w-12 h-12 text-zinc-800 mx-auto mb-4" />
+                      Produk tidak ditemukan.
                     </div>
+                  )}
+                </div>
+              </div>
+
+              {/* STICKY BOTTOM ACTION BAR */}
+              <div className="fixed bottom-0 left-0 right-0 z-50 p-5 bg-[#09090B]/80 backdrop-blur-2xl border-t border-white/10">
+                <div className="max-w-lg mx-auto flex items-center gap-4">
+                  <div className="flex-1 bg-[#18181B] rounded-[20px] px-5 py-3 border border-white/5 flex flex-col justify-center">
+                    <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-0.5">Total Dipilih</span>
+                    <span className="text-[20px] font-black text-white leading-none">{stocks.reduce((acc, curr) => acc + curr.stock, 0)} <span className="text-xs text-zinc-500 font-medium">Cup</span></span>
                   </div>
-                </form>
+                  <motion.button 
+                    whileTap={{ scale: 0.97 }}
+                    onClick={handleBukaShift}
+                    disabled={loading || stocks.reduce((acc, curr) => acc + curr.stock, 0) === 0} 
+                    className="flex-[1.5] h-[64px] bg-[#F97316] hover:bg-orange-500 disabled:bg-zinc-800 disabled:text-zinc-600 text-white rounded-[20px] font-black text-sm tracking-wide shadow-[0_10px_30px_rgba(249,115,22,0.3)] disabled:shadow-none flex items-center justify-center gap-2 transition-colors uppercase"
+                  >
+                    {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : "Buka Shift"}
+                  </motion.button>
+                </div>
               </div>
             </motion.div>
           ) : (
