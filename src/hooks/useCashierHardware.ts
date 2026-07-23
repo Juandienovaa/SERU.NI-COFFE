@@ -6,6 +6,8 @@ export function useCashierHardware(orders: any[], selectedOrderId: string | null
   const [permissionGranted, setPermissionGranted] = useState(false);
   const loopTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [isAudioUnlocked, setIsAudioUnlocked] = useState<boolean>(false);
+  const [isMuted, setIsMuted] = useState<boolean>(false);
+  const prevOrdersCount = useRef<number>(0);
 
   useEffect(() => {
     // initialize audio
@@ -64,9 +66,20 @@ export function useCashierHardware(orders: any[], selectedOrderId: string | null
     const audio = audioRef.current;
     if (!audio) return;
 
+    const currentOrdersCount = orders.length;
+    if (currentOrdersCount > prevOrdersCount.current) {
+       setIsMuted(false); // un-mute if new order comes in
+    }
+    prevOrdersCount.current = currentOrdersCount;
+
     const needsAttention = orders.some(o => 
       o.order_status === 'WAITING_PAYMENT' || o.order_status === 'WAITING_CONFIRMATION' || o.payment_status === 'WAITING_PAYMENT' || o.payment_status === 'WAITING_CONFIRMATION'
     );
+
+    // If no longer needs attention, reset mute
+    if (!needsAttention) {
+      setIsMuted(false);
+    }
 
     const handleEnded = () => {
       if (loopTimeoutRef.current) clearTimeout(loopTimeoutRef.current);
@@ -81,7 +94,7 @@ export function useCashierHardware(orders: any[], selectedOrderId: string | null
 
     audio.addEventListener('ended', handleEnded);
 
-    if (needsAttention && !selectedOrderId) {
+    if (needsAttention && !selectedOrderId && !isMuted) {
        // Play if not playing
        if (audio.paused) {
          audio.play().catch(() => {
@@ -110,7 +123,7 @@ export function useCashierHardware(orders: any[], selectedOrderId: string | null
     return () => {
        audio.removeEventListener('ended', handleEnded);
     };
-  }, [orders, selectedOrderId, permissionGranted]);
+  }, [orders, selectedOrderId, permissionGranted, isMuted]);
 
   const stopAudio = useCallback(() => {
     if (audioRef.current) {
@@ -118,6 +131,7 @@ export function useCashierHardware(orders: any[], selectedOrderId: string | null
       audioRef.current.currentTime = 0;
     }
     if (loopTimeoutRef.current) clearTimeout(loopTimeoutRef.current);
+    setIsMuted(true);
   }, []);
 
   const unlockAudio = useCallback(() => {
@@ -130,5 +144,13 @@ export function useCashierHardware(orders: any[], selectedOrderId: string | null
     }
   }, [isAudioUnlocked]);
 
-  return { stopAudio, unlockAudio, audioUnlocked: isAudioUnlocked };
+  const playAudio = useCallback(() => {
+    setIsMuted(false);
+    if (audioRef.current) {
+      audioRef.current.currentTime = 0;
+      audioRef.current.play().catch(() => {});
+    }
+  }, []);
+
+  return { stopAudio, playAudio, unlockAudio, audioUnlocked: isAudioUnlocked, isMuted, setIsMuted };
 }

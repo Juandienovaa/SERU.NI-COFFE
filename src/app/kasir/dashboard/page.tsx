@@ -7,7 +7,7 @@ import { fetchAllProducts } from "@/services/productService";
 import { useRealtimeOrders } from "@/hooks/useRealtimeOrders";
 import { useCashierHardware } from "@/hooks/useCashierHardware";
 import { ProductCatalogItem } from "@/types/product";
-import { ShoppingCart, ListOrdered, CheckCircle2, Package, Car, X, Plus, Minus, Search, Bell, MapPin, Phone, Receipt, ChefHat } from "lucide-react";
+import { ShoppingCart, ListOrdered, CheckCircle2, Package, Car, X, Plus, Minus, Search, Bell, BellOff, MapPin, Phone, Receipt, ChefHat } from "lucide-react";
 import { useRouter } from "next/navigation";
 import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
@@ -69,7 +69,7 @@ export default function CentralCashierDashboard() {
 
   // Online Orders State
   const { orders: onlineOrders, loading: onlineLoading, setOrders: setOnlineOrders } = useRealtimeOrders({ limit: 50 });
-  const { stopAudio, unlockAudio, audioUnlocked } = useCashierHardware(onlineOrders, selectedOrder?.id || null);
+  const { stopAudio, playAudio, unlockAudio, audioUnlocked, isMuted } = useCashierHardware(onlineOrders, selectedOrder?.id || null);
 
   useEffect(() => {
     const storedUser = localStorage.getItem("current_user");
@@ -403,6 +403,15 @@ export default function CentralCashierDashboard() {
                 className="bg-red-500/20 text-red-500 px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 hover:bg-red-500/30 transition-colors animate-pulse"
               >
                 <Bell className="w-4 h-4" /> Enable Notification Alert
+              </button>
+            )}
+            {audioUnlocked && onlineOrders.some(o => o.order_status === 'WAITING_PAYMENT' || o.order_status === 'WAITING_CONFIRMATION' || o.payment_status === 'WAITING_PAYMENT' || o.payment_status === 'WAITING_CONFIRMATION') && (
+              <button 
+                onClick={isMuted ? playAudio : stopAudio} 
+                className={`px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition-colors ${isMuted ? 'bg-neutral-800 text-neutral-400 hover:bg-neutral-700' : 'bg-red-500/20 text-red-500 hover:bg-red-500/30 animate-pulse'}`}
+              >
+                {isMuted ? <BellOff className="w-4 h-4" /> : <Bell className="w-4 h-4" />}
+                <span className="hidden sm:inline">{isMuted ? 'Notifikasi Dimatikan' : 'Matikan Notif'}</span>
               </button>
             )}
             <div className="flex items-center gap-3">
