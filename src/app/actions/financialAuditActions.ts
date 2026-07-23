@@ -41,25 +41,25 @@ export async function getMasterAuditPayload(periodStr: string): Promise<ActionRe
       endIso = end.toISOString();
     }
 
-    // 1. Executive KPIs (RPC)
-    const { data: kpiData, error: kpiErr } = await supabase.rpc("rpc_get_executive_kpis", { p_start_date: startIso, p_end_date: endIso });
+    // 1. Executive KPIs (RPC) - TRUE ERP
+    const { data: kpiData, error: kpiErr } = await supabase.rpc("rpc_get_true_executive_kpis", { p_start_date: startIso, p_end_date: endIso, p_include_open_shifts: true });
     if (kpiErr) console.error("KPI Error:", kpiErr);
 
-    // 2. Daily Closing Summary (RPC)
-    const { data: dailyData, error: dailyErr } = await supabase.rpc("rpc_get_daily_closing", { p_start_date: startIso, p_end_date: endIso });
+    // 2. Daily Closing Summary (RPC) - TRUE ERP
+    const { data: dailyData, error: dailyErr } = await supabase.rpc("rpc_get_true_daily_closing", { p_start_date: startIso, p_end_date: endIso });
     if (dailyErr) console.error("Daily Error:", dailyErr);
 
-    // 3. Shift Audit Master (View)
+    // 3. Shift Audit Master (View) - TRUE ERP
     const { data: shiftsData, error: shiftsErr } = await supabase
-      .from("vw_shift_audit_master")
+      .from("vw_true_shift_audit_master")
       .select("*")
-      .gte("closed_at", startIso)
-      .lte("closed_at", endIso)
-      .order("closed_at", { ascending: false });
+      .gte("opened_at", startIso)
+      .lte("opened_at", endIso)
+      .order("opened_at", { ascending: false });
     if (shiftsErr) console.error("Shifts View Error:", shiftsErr);
 
-    // 4. Exceptions (RPC)
-    const { data: exceptionsData, error: exceptionsErr } = await supabase.rpc("rpc_get_audit_exceptions", { p_start_date: startIso, p_end_date: endIso });
+    // 4. Exceptions (RPC) - TRUE ERP
+    const { data: exceptionsData, error: exceptionsErr } = await supabase.rpc("rpc_get_true_audit_exceptions", { p_start_date: startIso, p_end_date: endIso });
     if (exceptionsErr) console.error("Exceptions Error:", exceptionsErr);
 
     // Generate Financial Health (Simple placeholder rule based on exceptions and shift score for now)
@@ -80,7 +80,7 @@ export async function getMasterAuditPayload(periodStr: string): Promise<ActionRe
     // Executive Insights (Auto generated array)
     const insights = [];
     const kpi = kpiData?.[0] || {};
-    if (kpi.gross_revenue > 0) insights.push(`Total Revenue mencapai Rp ${kpi.gross_revenue.toLocaleString('id-ID')}`);
+    if (kpi.gross_revenue > 0) insights.push(`Total Revenue mencapai Rp ${kpi.gross_revenue.toLocaleString('id-ID')} secara Realtime.`);
     if (exceptionsData && exceptionsData.length > 0) insights.push(`Terdapat ${exceptionsData.length} anomali yang perlu diperiksa.`);
     else insights.push("Tidak ada anomali terdeteksi pada periode ini.");
     if (dailyData && dailyData.length > 0) insights.push(`Rata-rata penjualan harian tercatat dari ${dailyData.length} hari operasional.`);

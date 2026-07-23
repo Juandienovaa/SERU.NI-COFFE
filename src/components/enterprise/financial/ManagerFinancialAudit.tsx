@@ -195,8 +195,15 @@ export const ManagerFinancialAudit = () => {
                 {payload?.shiftMaster?.map((shift: any) => (
                   <tr key={shift.shift_id} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
                     <td className="p-4">
-                      <p className="text-sm font-bold text-white">{shift.cashier_name}</p>
-                      <p className="text-xs text-neutral-500 mt-1">{new Date(shift.closed_at).toLocaleString('id-ID')}</p>
+                      <div className="flex items-center gap-2 mb-1">
+                        <p className="text-sm font-bold text-white">{shift.cashier_name}</p>
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${shift.status === 'OPEN' ? 'bg-orange-500/20 text-orange-400' : 'bg-emerald-500/20 text-emerald-400'}`}>
+                          {shift.status}
+                        </span>
+                      </div>
+                      <p className="text-xs text-neutral-500">
+                        {shift.status === 'OPEN' ? '🟢 Sedang Berjalan' : new Date(shift.closed_at).toLocaleString('id-ID')}
+                      </p>
                     </td>
                     <td className="p-4">
                       <p className="text-sm font-medium text-white">{formatRupiah(shift.gross_sales)}</p>
@@ -206,14 +213,24 @@ export const ManagerFinancialAudit = () => {
                       <p className="text-sm font-medium text-red-400">{formatRupiah(shift.operational_expense)}</p>
                     </td>
                     <td className="p-4">
-                      <p className={`text-sm font-bold ${shift.cash_difference < 0 ? 'text-red-400' : shift.cash_difference > 0 ? 'text-yellow-400' : 'text-emerald-400'}`}>
-                        {formatRupiah(shift.cash_difference)}
-                      </p>
+                      {shift.status === 'OPEN' ? (
+                         <p className="text-xs text-neutral-500 italic">Menunggu Tutup Shift</p>
+                      ) : (
+                        <p className={`text-sm font-bold ${shift.cash_difference < 0 ? 'text-red-400' : shift.cash_difference > 0 ? 'text-yellow-400' : 'text-emerald-400'}`}>
+                          {formatRupiah(shift.cash_difference)}
+                        </p>
+                      )}
                     </td>
                     <td className="p-4">
-                      <span className={`px-2 py-1 text-xs font-bold rounded ${shift.audit_score >= 80 ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}`}>
-                        {shift.audit_score}/100
-                      </span>
+                      {shift.status === 'OPEN' ? (
+                        <span className="px-2 py-1 text-xs font-bold rounded bg-neutral-800 text-neutral-500">
+                          -
+                        </span>
+                      ) : (
+                        <span className={`px-2 py-1 text-xs font-bold rounded ${shift.audit_score >= 80 ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}`}>
+                          {shift.audit_score}/100
+                        </span>
+                      )}
                     </td>
                     <td className="p-4 text-right">
                       <button className="px-3 py-1.5 bg-white/5 hover:bg-white/10 text-white text-xs font-medium rounded transition-colors">
