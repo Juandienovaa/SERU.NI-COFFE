@@ -119,7 +119,7 @@ export default function WorkerDashboard() {
         
         if (productsRes.success && productsRes.data) {
           setProducts(productsRes.data);
-          setStocks(prev => prev.length === 0 ? productsRes.data.map(p => ({ productId: p.id, stock: 0 })) : prev);
+          setStocks(prev => prev.length === 0 ? productsRes.data.map(p => ({ productId: p.product_id, stock: 0 })) : prev);
         }
 
         if (activeUserShift && activeUserShift.id) {
@@ -201,7 +201,7 @@ export default function WorkerDashboard() {
 
   const filteredProducts = useMemo(() => {
     if (!searchQuery) return products;
-    return products.filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()));
+    return products.filter(p => p.product_name.toLowerCase().includes(searchQuery.toLowerCase()));
   }, [products, searchQuery]);
 
   // Fungsi Buka Shift (Fase Validasi)
@@ -238,10 +238,10 @@ export default function WorkerDashboard() {
       }
 
       const inventoryDataPayload = products.map(p => {
-        const stockInput = stocks.find(s => s.productId === p.id)?.stock || 0;
-        const invRow = availableStocks.find((a: any) => a.product_id === p.id);
-        const name = invRow ? invRow.product_name : p.name;
-        return { product_id: p.id, nama: name, stok_awal: stockInput, terjual: 0, sisa: stockInput };
+        const stockInput = stocks.find(s => s.productId === p.product_id)?.stock || 0;
+        const invRow = availableStocks.find((a: any) => a.product_id === p.product_id);
+        const name = invRow ? invRow.product_name : p.product_name;
+        return { product_id: p.product_id, nama: name, stok_awal: stockInput, terjual: 0, sisa: stockInput };
       });
       const newShift = await bukaShift(userId, workerName, selectedOutlet, shiftType, inventoryDataPayload);
       
@@ -546,9 +546,9 @@ export default function WorkerDashboard() {
                 {/* Product List */}
                 <div className="flex flex-col gap-6">
                   {filteredProducts.map((p, index) => {
-                    const invData = availableStocks.find(a => a.product_id === p.id);
+                    const invData = availableStocks.find(a => a.product_id === p.product_id);
                     const currentStock = invData ? invData.current_stock : 0;
-                    const selectedStock = stocks.find(s => s.productId === p.id)?.stock || 0;
+                    const selectedStock = stocks.find(s => s.productId === p.product_id)?.stock || 0;
                     const sisaMaster = currentStock - selectedStock;
                     const isEmpty = currentStock === 0;
                     const isLowStock = currentStock > 0 && currentStock <= 10;
@@ -559,13 +559,13 @@ export default function WorkerDashboard() {
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: Math.min(index * 0.05, 0.5), duration: 0.3 }}
-                        key={p.id} 
+                        key={p.product_id} 
                         className={`w-full bg-[#18181B] border ${isEmpty ? 'border-red-500/10 opacity-70' : isMaxed ? 'border-[#F97316]/30' : 'border-white/5'} rounded-[24px] p-5 flex items-center gap-5 shadow-[0_8px_32px_rgba(0,0,0,0.12)] hover:shadow-[0_8px_32px_rgba(249,115,22,0.05)] transition-all`}
                       >
                         {/* Image */}
                         <div className="w-[100px] h-[100px] rounded-[18px] bg-[#09090B] border border-white/5 overflow-hidden shrink-0 relative">
                           {p.image_url || p.image ? (
-                             <img src={p.image_url || p.image} alt={p.name} className={`w-full h-full object-cover ${isEmpty ? 'grayscale' : ''}`} loading="lazy" />
+                             <img src={p.image_url || p.image} alt={p.product_name} className={`w-full h-full object-cover ${isEmpty ? 'grayscale' : ''}`} loading="lazy" />
                           ) : (
                              <div className="w-full h-full flex items-center justify-center text-zinc-700 font-bold text-xs">No Image</div>
                           )}
@@ -574,7 +574,7 @@ export default function WorkerDashboard() {
 
                         {/* Content */}
                         <div className="flex-1 flex flex-col justify-center min-w-0 py-1">
-                          <h3 className="text-[18px] font-bold text-white leading-tight mb-2 truncate pr-2">{p.name}</h3>
+                          <h3 className="text-[18px] font-bold text-white leading-tight mb-2 truncate pr-2">{p.product_name}</h3>
                           
                           <div className="flex flex-wrap items-center gap-2 mb-3">
                             {isEmpty ? (
@@ -595,7 +595,7 @@ export default function WorkerDashboard() {
                               whileTap={{ scale: 0.9 }}
                               type="button" 
                               disabled={selectedStock <= 0 || isEmpty}
-                              onClick={() => decrementStock(p.id)} 
+                              onClick={() => decrementStock(p.product_id)} 
                               className="w-11 h-11 rounded-2xl bg-[#09090B] border border-white/5 hover:bg-zinc-800 disabled:opacity-30 disabled:pointer-events-none flex items-center justify-center text-zinc-400 transition-colors shadow-inner shrink-0"
                             >
                               <Minus className="w-5 h-5" />
@@ -606,9 +606,9 @@ export default function WorkerDashboard() {
                                 type="number"
                                 inputMode="numeric"
                                 value={selectedStock || ''}
-                                onChange={(e) => handleStockChange(p.id, e.target.value, currentStock)}
+                                onChange={(e) => handleStockChange(p.product_id, e.target.value, currentStock)}
                                 onBlur={(e) => {
-                                  if (!e.target.value) handleStockChange(p.id, "0", currentStock);
+                                  if (!e.target.value) handleStockChange(p.product_id, "0", currentStock);
                                 }}
                                 disabled={isEmpty}
                                 placeholder="0"
@@ -620,7 +620,7 @@ export default function WorkerDashboard() {
                               whileTap={{ scale: 0.9 }}
                               type="button" 
                               disabled={isMaxed || isEmpty}
-                              onClick={() => incrementStock(p.id)} 
+                              onClick={() => incrementStock(p.product_id)} 
                               className="w-11 h-11 rounded-2xl bg-[#F97316]/10 border border-[#F97316]/20 hover:bg-[#F97316]/20 disabled:opacity-30 disabled:border-transparent disabled:bg-[#09090B] disabled:pointer-events-none flex items-center justify-center text-[#F97316] transition-colors shrink-0"
                             >
                               <Plus className="w-5 h-5" />
@@ -682,22 +682,22 @@ export default function WorkerDashboard() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {products.map((p) => {
-                   const invItem = liveInventory.find(inv => inv.product_id === p.id);
+                   const invItem = liveInventory.find(inv => inv.product_id === p.product_id);
                    const currentStock = invItem ? invItem.sisa : 0;
                    const soldCount = invItem ? invItem.terjual : 0;
                    const isEmpty = !invItem || currentStock <= 0;
 
                    return (
-                     <div key={p.id} className={`bg-[#111111] border ${isEmpty ? 'border-red-500/20' : 'border-[#1A1A1A]'} p-4 rounded-3xl flex gap-5 items-center relative overflow-hidden`}>
+                     <div key={p.product_id} className={`bg-[#111111] border ${isEmpty ? 'border-red-500/20' : 'border-[#1A1A1A]'} p-4 rounded-3xl flex gap-5 items-center relative overflow-hidden`}>
                         {isEmpty && <div className="absolute inset-0 bg-[#0A0A0A]/50 z-10 pointer-events-none" />}
                         
                         <div className="relative w-24 h-28 rounded-2xl bg-[#1A1A1A] border border-neutral-800 shrink-0 z-0 overflow-hidden">
                           {/* Fix Image: Ganti img biasa biar tidak blank di HP */}
-                          <img src={p.image} alt={p.name} className={`w-full h-full object-cover ${isEmpty ? 'grayscale opacity-50' : ''}`} loading="lazy" />
+                          <img src={p.image} alt={p.product_name} className={`w-full h-full object-cover ${isEmpty ? 'grayscale opacity-50' : ''}`} loading="lazy" />
                         </div>
                         
                         <div className="flex-1 flex flex-col h-full py-1 z-0">
-                          <h3 className={`font-black text-lg leading-tight mb-2 ${isEmpty ? 'text-neutral-500' : 'text-white'}`}>{p.name}</h3>
+                          <h3 className={`font-black text-lg leading-tight mb-2 ${isEmpty ? 'text-neutral-500' : 'text-white'}`}>{p.product_name}</h3>
                           
                           <div className="flex flex-wrap items-center gap-2 mt-1 mb-4">
                             <div className="flex items-center gap-2">
@@ -706,7 +706,7 @@ export default function WorkerDashboard() {
                                 <span className={`text-base font-black ${isEmpty ? 'text-red-500' : 'text-[#EA580C]'}`}>{currentStock}</span>
                               </div>
                               <button
-                                onClick={() => handleOpenRestockModal(p.id, p.name, currentStock)}
+                                onClick={() => handleOpenRestockModal(p.product_id, p.product_name, currentStock)}
                                 disabled={loading}
                                 className="w-8 h-8 shrink-0 flex items-center justify-center rounded-xl border border-neutral-700 bg-transparent text-neutral-400 hover:border-neutral-500 hover:text-white transition-all duration-200 active:scale-95 z-20 pointer-events-auto"
                                 title="Tambah Stok"
@@ -726,7 +726,7 @@ export default function WorkerDashboard() {
                                 <X className="w-3 h-3"/> SOLD OUT
                               </button>
                               <button 
-                                onClick={() => handleOpenRestockModal(p.id, p.name, currentStock)}
+                                onClick={() => handleOpenRestockModal(p.product_id, p.product_name, currentStock)}
                                 disabled={loading}
                                 className="flex-1 flex items-center justify-center gap-1 py-3.5 rounded-xl font-black text-[10px] tracking-widest uppercase text-[#EA580C] border border-[#EA580C] hover:bg-[#EA580C]/10 transition-colors active:scale-95"
                               >
@@ -735,7 +735,7 @@ export default function WorkerDashboard() {
                             </div>
                           ) : (
                             <button 
-                              onClick={() => setConfirmSale({ isOpen: true, productId: p.id, productName: p.name, paymentMethod: 'CASH' })} 
+                              onClick={() => setConfirmSale({ isOpen: true, productId: p.product_id, productName: p.product_name, paymentMethod: 'CASH' })} 
                               disabled={loading}
                               className="w-full flex items-center justify-center gap-2 py-3.5 mt-1 rounded-xl font-black text-xs tracking-widest uppercase transition-all bg-[#EA580C] text-white active:scale-[0.95]"
                             >
