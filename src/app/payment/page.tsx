@@ -2,7 +2,6 @@
 
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import Image from "next/image";
 import { useOnlineCart } from "@/store/useOnlineCart";
 
 export default function PaymentPage() {
@@ -113,13 +112,10 @@ export default function PaymentPage() {
 
           {/* QRIS Image */}
           <div className="bg-white p-4 rounded-2xl w-full flex items-center justify-center shadow-[0_0_40px_rgba(255,255,255,0.1)] relative mb-6">
-            <Image 
+            <img 
               src="/qris.jpeg" 
               alt="QRIS Seru.ni"
-              width={300}
-              height={300}
               className="w-full max-w-sm mx-auto rounded-xl shadow-md"
-              priority
             />
           </div>
 
