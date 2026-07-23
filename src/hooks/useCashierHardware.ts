@@ -5,7 +5,7 @@ export function useCashierHardware(orders: any[], selectedOrderId: string | null
   const wakeLockRef = useRef<any>(null);
   const [permissionGranted, setPermissionGranted] = useState(false);
   const loopTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const audioUnlocked = useRef<boolean>(false);
+  const [isAudioUnlocked, setIsAudioUnlocked] = useState<boolean>(false);
 
   useEffect(() => {
     // initialize audio
@@ -74,7 +74,7 @@ export function useCashierHardware(orders: any[], selectedOrderId: string | null
       loopTimeoutRef.current = setTimeout(() => {
         audio.currentTime = 0;
         audio.play().catch(() => {
-          audioUnlocked.current = false;
+          setIsAudioUnlocked(false);
         });
       }, 10000);
     };
@@ -85,10 +85,10 @@ export function useCashierHardware(orders: any[], selectedOrderId: string | null
        // Play if not playing
        if (audio.paused) {
          audio.play().catch(() => {
-           audioUnlocked.current = false;
+           setIsAudioUnlocked(false);
          });
        } else {
-         audioUnlocked.current = true;
+         setIsAudioUnlocked(true);
        }
 
        if (document.visibilityState !== 'visible') {
@@ -121,14 +121,14 @@ export function useCashierHardware(orders: any[], selectedOrderId: string | null
   }, []);
 
   const unlockAudio = useCallback(() => {
-    if (audioRef.current && !audioUnlocked.current) {
+    if (audioRef.current && !isAudioUnlocked) {
       audioRef.current.play().then(() => {
         audioRef.current?.pause();
         audioRef.current!.currentTime = 0;
-        audioUnlocked.current = true;
+        setIsAudioUnlocked(true);
       }).catch(() => {});
     }
-  }, []);
+  }, [isAudioUnlocked]);
 
-  return { stopAudio, unlockAudio, audioUnlocked: audioUnlocked.current };
+  return { stopAudio, unlockAudio, audioUnlocked: isAudioUnlocked };
 }
