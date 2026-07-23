@@ -11,7 +11,7 @@ import Footer from "@/components/Footer";
 import ProductCard from "@/components/ProductCard";
 import { products, Product } from "./data";
 import { supabase } from "@/lib/supabase";
-import { getOutlets } from "@/services/backendService";
+import { getOutlets } from "@/app/actions/legacyActions";
 
 const playfair = Playfair_Display({ subsets: ["latin"], style: ["normal", "italic"], weight: ["400", "700"] });
 const montserrat = Montserrat({ subsets: ["latin"], weight: ["600", "700", "900"] });

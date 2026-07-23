@@ -89,10 +89,11 @@ export default function TrackingPage() {
       };
       frame();
 
-      // Auto hide popup after 6 seconds
+      // Auto redirect to menu after 4 seconds
       const timer = setTimeout(() => {
         setShowPopup(false);
-      }, 6000);
+        router.replace('/menu-online');
+      }, 4000);
       return () => clearTimeout(timer);
     }
   }, [isCompleted, hasShownCompletion]);
@@ -302,47 +303,43 @@ export default function TrackingPage() {
               onClick={() => setShowPopup(false)}
             />
             <motion.div 
-              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              initial={{ scale: 0.95, opacity: 0, y: 10 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.9, opacity: 0, y: 20 }}
-              className="relative bg-[#111111] border border-white/10 p-8 rounded-[2rem] w-full max-w-sm shadow-2xl overflow-hidden text-center"
+              exit={{ scale: 0.95, opacity: 0, y: 10 }}
+              className="relative bg-[#1C1C1E] border border-white/5 p-6 rounded-3xl w-full max-w-[320px] shadow-2xl text-center"
             >
-              <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-emerald-500 to-teal-500" />
               
               <button 
                 onClick={() => setShowPopup(false)}
-                className="absolute top-4 right-4 text-neutral-500 hover:text-white transition-colors"
+                className="absolute top-4 right-4 text-neutral-500 hover:text-white transition-colors p-1 bg-white/5 rounded-full"
               >
-                <X className="w-5 h-5" />
+                <X className="w-4 h-4" />
               </button>
 
-              <div className="w-20 h-20 mx-auto bg-gradient-to-br from-emerald-400/20 to-emerald-600/20 rounded-full flex items-center justify-center mb-6">
-                <CheckCircle2 className="w-10 h-10 text-emerald-500" />
+              <div className="w-14 h-14 mx-auto bg-emerald-500/10 rounded-full flex items-center justify-center mb-4 mt-2">
+                <CheckCircle2 className="w-7 h-7 text-emerald-500" />
               </div>
               
-              <h3 className="text-2xl font-black text-white tracking-tight mb-3">
-                🎉 Pesanan Selesai
+              <h3 className="text-xl font-bold text-white tracking-tight mb-1">
+                Pesanan Selesai
               </h3>
               
-              <div className="text-neutral-400 text-sm leading-relaxed mb-8 space-y-2">
-                <p>Terima kasih telah menikmati Seru.ni Coffee.</p>
-                <p>Kepuasan Anda adalah prioritas kami.</p>
-                <p>Semoga hari Anda semakin menyenangkan bersama secangkir kopi terbaik dari Seru.ni.</p>
-                <p>Sampai jumpa di pesanan berikutnya! ☕</p>
-              </div>
+              <p className="text-neutral-400 text-sm mb-6">
+                Silakan nikmati pesanan Anda.
+              </p>
 
-              <div className="space-y-3">
-                <button 
-                  onClick={() => router.push("/menu-online")}
-                  className="w-full bg-orange-500 hover:bg-orange-600 text-white py-3.5 rounded-xl font-bold transition-colors shadow-[0_0_20px_rgba(249,115,22,0.3)]"
-                >
-                  Pesan Lagi
-                </button>
+              <div className="flex gap-3">
                 <button 
                   onClick={() => setShowPopup(false)}
-                  className="w-full bg-white/5 hover:bg-white/10 text-white py-3.5 rounded-xl font-bold transition-colors"
+                  className="flex-1 bg-white/5 hover:bg-white/10 text-white py-3 rounded-xl font-semibold text-sm transition-colors"
                 >
                   Tutup
+                </button>
+                <button 
+                  onClick={() => router.push("/menu-online")}
+                  className="flex-1 bg-orange-500 hover:bg-orange-600 text-white py-3 rounded-xl font-semibold text-sm transition-colors"
+                >
+                  Pesan Lagi
                 </button>
               </div>
             </motion.div>

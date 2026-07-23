@@ -56,6 +56,7 @@ export default function CheckoutPage() {
   const router = useRouter();
   const cart = useOnlineCart((state) => state.items);
   const getSubtotal = useOnlineCart((state) => state.getSubtotal);
+  const getTotalItems = useOnlineCart((state) => state.getTotalItems);
   const [mounted, setMounted] = useState(false);
   const [isLoadingGPS, setIsLoadingGPS] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -99,10 +100,10 @@ export default function CheckoutPage() {
   }, [watchLat, watchLon]);
 
   const subtotal = getSubtotal();
-  // Dynamic delivery fee calculation: Base Rp 5.000 + Rp 2.000 per KM.
-  // Free if subtotal > 50000.
-  const isFreeOngkir = subtotal >= 50000;
-  const calculatedOngkir = isFreeOngkir ? 0 : 5000 + (Math.ceil(distanceKm) * 2000);
+  const totalQty = getTotalItems();
+  // Aturan ongkos kirim: di bawah 5 produk Rp 10.000, 5 produk atau lebih GRATIS.
+  const isFreeOngkir = totalQty >= 5;
+  const calculatedOngkir = isFreeOngkir ? 0 : 10000;
   const total = subtotal + calculatedOngkir;
 
   const handleGetLocation = () => {

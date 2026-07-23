@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { fetchAllProducts } from "@/services/productService";
-import { getAvailableStockForShift } from "@/services/backendService"; // Reusing to check Master Inventory
+import { getAvailableStockForShift } from "@/app/actions/legacyActions"; // Reusing to check Master Inventory
 import { ProductCatalogItem } from "@/types/product";
 import { Plus, Minus, ShoppingBag, MapPin, Navigation2, ArrowRight, Loader2, CheckCircle2 } from "lucide-react";
 import { supabase } from "@/lib/supabase";

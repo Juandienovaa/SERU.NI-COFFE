@@ -2,14 +2,18 @@
 
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { useOnlineCart } from "@/store/useOnlineCart";
+import { supabase } from "@/lib/supabase";
+import { Loader2 } from "lucide-react";
 
 export default function PaymentPage() {
   const router = useRouter();
-  const { items, getTotalItems, getSubtotal } = useOnlineCart();
+  const { items, getTotalItems, getSubtotal, clearCart } = useOnlineCart();
   
   // State untuk hydration fix
   const [isMounted, setIsMounted] = useState(false);
+  const [isConfirming, setIsConfirming] = useState(false);
   
   // State untuk timer 5 menit (300 detik)
   const [timeLeft, setTimeLeft] = useState(300);
@@ -44,10 +48,65 @@ export default function PaymentPage() {
   // Logic Perhitungan
   const totalQty = isMounted ? getTotalItems() : 0;
   const subtotal = isMounted ? getSubtotal() : 0;
-  const shippingCost = totalQty > 5 ? 0 : 10000;
+  const shippingCost = totalQty >= 5 ? 0 : 10000;
   const grandTotal = subtotal + shippingCost;
   
   const isTimeUp = timeLeft === 0;
+
+  const handleConfirmPayment = async () => {
+    try {
+      setIsConfirming(true);
+      const payloadStr = sessionStorage.getItem("current_checkout");
+      if (!payloadStr) {
+        throw new Error("Data pesanan tidak ditemukan.");
+      }
+      
+      const payload = JSON.parse(payloadStr);
+      const invoiceNumber = `INV-${Date.now().toString().slice(-6)}-${Math.floor(Math.random() * 1000)}`;
+      
+      const { data: orderData, error: orderError } = await supabase.from("online_orders").insert([{
+        invoice_number: invoiceNumber,
+        customer_name: payload.customer.name,
+        customer_phone: payload.customer.phone,
+        delivery_address: payload.customer.address,
+        latitude: payload.customer.lat ? parseFloat(payload.customer.lat) : null,
+        longitude: payload.customer.lng ? parseFloat(payload.customer.lng) : null,
+        order_type: 'DELIVERY',
+        payment_status: 'PAID',
+        order_status: 'WAITING_CONFIRMATION',
+        payment_method: 'QRIS',
+        subtotal: payload.financial.subtotal,
+        delivery_fee: payload.financial.delivery_fee,
+        grand_total: payload.financial.total,
+        notes: payload.customer.notes
+      }]).select("id").single();
+
+      if (orderError) throw orderError;
+
+      const orderItems = items.map(item => ({
+        order_id: orderData.id,
+        product_id: item.product.product_id,
+        product_name: item.product.product_name,
+        quantity: item.qty,
+        price: item.product.price || 0,
+        subtotal: (item.product.price || 0) * item.qty
+      }));
+
+      const { error: itemsError } = await supabase.from("online_order_items").insert(orderItems);
+      
+      if (itemsError) throw itemsError;
+
+      sessionStorage.setItem("current_tracking_id", orderData.id);
+      sessionStorage.removeItem("current_checkout");
+      clearCart();
+      
+      router.push("/tracking");
+    } catch (error: any) {
+      console.error("Order error:", error);
+      alert(`Terjadi kesalahan saat memproses pesanan: ${error?.message || JSON.stringify(error)}`);
+      setIsConfirming(false);
+    }
+  };
 
   // Jangan render UI utama sebelum client terhidrasi sepenuhnya untuk menghindari mismatch
   if (!isMounted) return null;
@@ -112,9 +171,12 @@ export default function PaymentPage() {
 
           {/* QRIS Image */}
           <div className="bg-white p-4 rounded-2xl w-full flex items-center justify-center shadow-[0_0_40px_rgba(255,255,255,0.1)] relative mb-6">
-            <img 
+            <Image 
               src="/qris.jpeg" 
               alt="QRIS Seru.ni"
+              width={250}
+              height={250}
+              priority
               className="w-full max-w-[250px] aspect-square object-contain bg-white p-2 rounded-xl mx-auto shadow-md"
             />
           </div>
@@ -130,15 +192,16 @@ export default function PaymentPage() {
 
           {/* CTA Button */}
           <button
-            onClick={() => router.push('/live-tracking')}
-            disabled={isTimeUp}
-            className={`w-full py-3 px-6 rounded-lg font-bold text-white transition-all shadow-lg active:scale-95 ${
-              isTimeUp 
+            onClick={handleConfirmPayment}
+            disabled={isTimeUp || isConfirming}
+            className={`flex items-center justify-center gap-2 w-full py-3 px-6 rounded-lg font-bold text-white transition-all shadow-lg active:scale-95 ${
+              isTimeUp || isConfirming
                 ? "bg-neutral-600 cursor-not-allowed opacity-70 shadow-none text-neutral-300" 
                 : "bg-orange-600 hover:bg-orange-500 shadow-orange-500/20"
             }`}
           >
-            {isTimeUp ? "Waktu Habis" : "Konfirmasi Pembayaran"}
+            {isConfirming && <Loader2 className="w-5 h-5 animate-spin" />}
+            {isConfirming ? "Memproses..." : isTimeUp ? "Waktu Habis" : "Konfirmasi Pembayaran"}
           </button>
 
         </div>

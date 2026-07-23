@@ -5,7 +5,7 @@ import { AlertTriangle, Loader2 } from "lucide-react";
 import { AppModal } from "@/components/ui/AppModal";
 import { InventoryItemSnapshot, CloseShiftPayload } from "@/types/shift";
 import { calculateShiftClosingFinancials, calculateInventoryTotals } from "@/utils/financial";
-import { tutupShift } from "@/services/backendService";
+import { closeShift } from "@/app/actions/shiftActions";
 import { getShiftCheckoutSummary } from "@/services/shiftSummary";
 import { fetchAllProducts } from "@/services/productService";
 
@@ -118,22 +118,17 @@ export default function CloseShiftModal({
     try {
       setIsClosing(true);
       setErrorMessage(null);
+      
+      const currentUserStr = localStorage.getItem("current_user");
+      let userId = "UNKNOWN";
+      if (currentUserStr) {
+         try { userId = JSON.parse(currentUserStr).id; } catch (e) {}
+      }
 
-      const closePayload: CloseShiftPayload = {
-        shift_id: shiftId,
-        closed_at: new Date().toISOString(),
-        cash_revenue: summaryData?.cashRevenue || 0,
-        qris_revenue: summaryData?.qrisRevenue || 0,
-        total_sales: summaryData?.totalRevenue || 0,
-        total_cups: summaryData?.totalCupsSold || 0,
-        bonus_amount: summaryData?.bonusAmount || 0,
-        is_bonus_achieved: summaryData?.isBonusAchieved || false,
-        cash_deposit: summaryData?.cashDeposit || 0,
-        inventory_data: inventoryData || [], // Legacy fallback
-        status: "CLOSED",
-      };
-
-      await tutupShift(closePayload);
+      const res = await closeShift(shiftId, userId, summaryData?.cashDeposit || 0);
+      if (!res.success) {
+         throw new Error(res.message);
+      }
       onSuccessClose();
     } catch (err: any) {
       console.error("Gagal menutup shift:", err);

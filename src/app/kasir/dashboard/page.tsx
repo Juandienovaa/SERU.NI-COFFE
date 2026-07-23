@@ -7,11 +7,16 @@ import { fetchAllProducts } from "@/services/productService";
 import { useRealtimeOrders } from "@/hooks/useRealtimeOrders";
 import { useCashierHardware } from "@/hooks/useCashierHardware";
 import { ProductCatalogItem } from "@/types/product";
-import { ShoppingCart, ListOrdered, CheckCircle2, Package, Car, X, Plus, Minus, Search, Bell, BellOff, MapPin, Phone, Receipt, ChefHat } from "lucide-react";
+import { ShoppingCart, ListOrdered, CheckCircle2, Package, Car, X, Plus, Minus, Search, Bell, BellOff, MapPin, Phone, Receipt, ChefHat, Calculator, Wallet } from "lucide-react";
 import { useRouter } from "next/navigation";
 import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
 import dynamic from 'next/dynamic';
+import { getActiveKasirShiftAction } from "@/app/actions/shiftActions";
+import { ModalAwalKasirDialog } from "@/components/pos/central-cashier/ModalAwalKasirDialog";
+import { OperasionalKasKasir } from "@/components/pos/central-cashier/OperasionalKasKasir";
+import { BukuKasTimeline } from "@/components/pos/central-cashier/BukuKasTimeline";
+import { TutupShiftKasirModal } from "@/components/pos/central-cashier/TutupShiftKasirModal";
 
 const MapPreview = dynamic(() => import('@/components/MapPreview'), { 
   ssr: false, 
@@ -63,6 +68,13 @@ export default function CentralCashierDashboard() {
   const [products, setProducts] = useState<ProductCatalogItem[]>([]);
   const [inventory, setInventory] = useState<any[]>([]);
 
+  // Kasir Pusat Audit State
+  const [activeShift, setActiveShift] = useState<any | null>(null);
+  const [showModalAwal, setShowModalAwal] = useState(false);
+  const [showTutupShift, setShowTutupShift] = useState(false);
+  const [operationalExpenses, setOperationalExpenses] = useState<any[]>([]);
+  const [shiftTransactions, setShiftTransactions] = useState<any[]>([]); // For cash ledger
+
   // Offline POS State
   const [cart, setCart] = useState<{ product: ProductCatalogItem; qty: number }[]>([]);
   const [submittingOffline, setSubmittingOffline] = useState(false);
@@ -102,6 +114,29 @@ export default function CentralCashierDashboard() {
       if (prodRes.success) setProducts(prodRes.data || []);
       if (invRes.data) setInventory(invRes.data || []);
       
+      // Load active shift
+      try {
+        const u = JSON.parse(storedUser!);
+        const res = await getActiveKasirShiftAction(u.id);
+        if (res.success && res.data) {
+          const shift = res.data;
+          setActiveShift(shift);
+          
+          // Load expenses
+          const { data: exp } = await supabase.from("operational_expenses").select("*").eq("shift_id", shift.id).order("created_at", { ascending: false });
+          if (exp) setOperationalExpenses(exp);
+
+          // Load transactions for this shift
+          const { data: txs } = await supabase.from("transactions").select("*").eq("shift_id", shift.id).order("created_at", { ascending: false });
+          if (txs) setShiftTransactions(txs);
+        } else {
+          setShowModalAwal(true);
+        }
+      } catch (err: any) {
+        console.error("Error loading active shift", err);
+        setShowModalAwal(true);
+      }
+
       setLoading(false);
     }
     
@@ -114,8 +149,24 @@ export default function CentralCashierDashboard() {
       })
       .subscribe();
 
+    const expensesChannel = supabase.channel('central-cashier-expenses')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'operational_expenses' }, (payload) => {
+        if (payload.eventType === 'INSERT') {
+          setOperationalExpenses(prev => [payload.new, ...prev]);
+        }
+      })
+      .subscribe();
+      
+    const txChannel = supabase.channel('central-cashier-tx')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'transactions' }, (payload) => {
+        setShiftTransactions(prev => [payload.new, ...prev]);
+      })
+      .subscribe();
+
     return () => {
       supabase.removeChannel(invChannel);
+      supabase.removeChannel(expensesChannel);
+      supabase.removeChannel(txChannel);
     };
   }, [router]);
 
@@ -193,21 +244,27 @@ export default function CentralCashierDashboard() {
   };
 
   const completeOnlineOrder = async (orderId: string) => {
-    handleStopAudio();
-    
-    // Explicitly update status via REST API to guarantee Supabase Realtime broadcast
-    await supabase.from("online_orders").update({ 
-      order_status: 'COMPLETED',
-      updated_at: new Date().toISOString()
-    }).eq("id", orderId);
+    try {
+      handleStopAudio();
+      
+      const { error } = await supabase.rpc('rpc_complete_online_order', { 
+        p_order_id: orderId,
+        p_cashier_id: currentUser?.id || null
+      });
 
-    // This RPC handles inventory reduction safely
-    await supabase.rpc('rpc_complete_online_order', { p_order_id: orderId });
-    
-    // Optimistic Update
-    setOnlineOrders((prev: any) => prev.map((o: any) => o.id === orderId ? { ...o, order_status: 'COMPLETED' } : o));
-    if (selectedOrder?.id === orderId) {
-      setSelectedOrder((prev: any) => prev ? { ...prev, order_status: 'COMPLETED' } : null);
+      if (error) throw error;
+
+      setSelectedOrder(null);
+      Toast.fire({
+        icon: 'success',
+        title: 'Pesanan berhasil diselesaikan. Master Inventory berhasil diperbarui.'
+      });
+    } catch (error: any) {
+      console.error("Error completing order:", error);
+      Toast.fire({
+        icon: 'error',
+        title: error.message || 'Gagal menyelesaikan pesanan'
+      });
     }
   };
 
@@ -278,7 +335,7 @@ export default function CentralCashierDashboard() {
       // 2. Insert ke transactions
       const qtySold = cart.reduce((acc, item) => acc + item.qty, 0);
       const { data: txMaster, error: txMasterError } = await supabase.from("transactions").insert([{
-        shift_id: null,
+        shift_id: activeShift?.id || null,
         outlet_id: "CENTRAL_CASHIER",
         cashier_id: currentUser?.id || "KASIR",
         payment_method: method,
@@ -386,6 +443,16 @@ export default function CentralCashierDashboard() {
             <ShoppingCart className="w-5 h-5" />
             <span className="font-bold text-sm hidden md:block">Offline POS</span>
           </button>
+          
+          <button onClick={() => setActiveTab("OPERASIONAL_KAS" as any)} className={`w-full flex items-center gap-3 p-4 rounded-2xl transition-all ${activeTab === ('OPERASIONAL_KAS' as any) ? 'bg-orange-500 text-white mt-4' : 'hover:bg-white/5 text-neutral-400 mt-4'}`}>
+            <Wallet className="w-5 h-5" />
+            <span className="font-bold text-sm hidden md:block">Operasional Kas</span>
+          </button>
+          
+          <button onClick={() => setActiveTab("BUKU_KAS" as any)} className={`w-full flex items-center gap-3 p-4 rounded-2xl transition-all ${activeTab === ('BUKU_KAS' as any) ? 'bg-orange-500 text-white mt-4' : 'hover:bg-white/5 text-neutral-400 mt-4'}`}>
+            <ListOrdered className="w-5 h-5" />
+            <span className="font-bold text-sm hidden md:block">Buku Kas</span>
+          </button>
         </nav>
       </aside>
 
@@ -429,6 +496,14 @@ export default function CentralCashierDashboard() {
                 <p className="text-[10px] text-neutral-400 uppercase tracking-widest">{currentUser?.role || "Central Cashier"} • Login: {loginTime}</p>
               </div>
             </div>
+            {activeShift && (
+              <button 
+                onClick={() => setShowTutupShift(true)}
+                className="text-xs font-bold text-white uppercase tracking-widest px-4 py-2 rounded-xl bg-orange-500 hover:bg-orange-600 transition-colors flex items-center gap-2"
+              >
+                <Calculator className="w-4 h-4" /> Tutup Shift
+              </button>
+            )}
             <button 
               onClick={handleLogout}
               className="text-xs font-bold text-red-500 hover:text-red-400 uppercase tracking-widest px-4 py-2 rounded-xl bg-red-500/10 hover:bg-red-500/20 transition-colors"
@@ -541,6 +616,25 @@ export default function CentralCashierDashboard() {
                 </div>
               </motion.div>
             )}
+            {activeTab === ('OPERASIONAL_KAS' as any) && (
+              <motion.div key="operasional" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="h-full overflow-y-auto">
+                <OperasionalKasKasir 
+                  shift={activeShift} 
+                  expenses={operationalExpenses} 
+                  totalCashSales={shiftTransactions.filter(t => t.payment_method === 'CASH').reduce((sum, t) => sum + Number(t.total_amount), 0)} 
+                />
+              </motion.div>
+            )}
+
+            {activeTab === ('BUKU_KAS' as any) && (
+              <motion.div key="bukukas" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="h-full overflow-y-auto">
+                <BukuKasTimeline 
+                  shift={activeShift} 
+                  expenses={operationalExpenses} 
+                  transactions={shiftTransactions} 
+                />
+              </motion.div>
+            )}
 
           </AnimatePresence>
         </div>
@@ -557,14 +651,14 @@ export default function CentralCashierDashboard() {
               <motion.div 
                 initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }}
                 transition={{ type: "spring", damping: 25, stiffness: 200 }}
-                className="absolute right-0 top-0 bottom-0 w-full md:w-[480px] bg-[#111111] border-l border-white/10 z-50 flex flex-col shadow-2xl"
+                className="absolute right-0 top-0 bottom-0 w-full md:w-[480px] bg-[#111111] border-l border-white/5 z-50 flex flex-col shadow-2xl"
               >
-                <div className="p-6 border-b border-white/5 flex justify-between items-center bg-[#0A0A0A]/50 backdrop-blur-md">
+                <div className="p-6 border-b border-white/5 flex justify-between items-center bg-[#111111]/80 backdrop-blur-md">
                   <div>
                     <h3 className="font-black text-xl text-white">Detail Pesanan</h3>
-                    <p className="text-sm font-mono text-orange-500">{selectedOrder.invoice_number}</p>
+                    <p className="text-sm font-mono text-neutral-500">{selectedOrder.invoice_number}</p>
                   </div>
-                  <button onClick={handleCloseOrder} className="w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center transition-colors">
+                  <button onClick={handleCloseOrder} className="w-10 h-10 rounded-full bg-neutral-900 hover:bg-neutral-800 flex items-center justify-center transition-colors">
                     <X className="w-5 h-5 text-neutral-400" />
                   </button>
                 </div>
@@ -575,7 +669,7 @@ export default function CentralCashierDashboard() {
                   <div className="bg-[#1A1A1A] p-5 rounded-2xl border border-white/5 space-y-4">
                     <div className="flex justify-between items-start">
                       <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-full bg-orange-500/20 text-orange-500 flex items-center justify-center font-black text-xl shrink-0">
+                        <div className="w-12 h-12 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center font-black text-xl shrink-0">
                           {selectedOrder.customer_name?.charAt(0) || "C"}
                         </div>
                         <div>
@@ -585,16 +679,16 @@ export default function CentralCashierDashboard() {
                           </div>
                         </div>
                       </div>
-                      <a href={`https://wa.me/${selectedOrder.customer_phone?.replace(/^0/, '62')}?text=Halo%20${selectedOrder.customer_name},%20ini%20dari%20Seru.ni%20Coffee`} target="_blank" rel="noreferrer" className="w-10 h-10 rounded-full bg-green-500/10 text-green-500 hover:bg-green-500/20 flex items-center justify-center transition-colors">
+                      <a href={`https://wa.me/${selectedOrder.customer_phone?.replace(/^0/, '62')}?text=Halo%20${selectedOrder.customer_name},%20ini%20dari%20Seru.ni%20Coffee`} target="_blank" rel="noreferrer" className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-600 hover:bg-emerald-200 flex items-center justify-center transition-colors">
                         <Phone className="w-4 h-4" />
                       </a>
                     </div>
                     
                     {selectedOrder.order_type === 'DELIVERY' && (
                       <div className="pt-4 border-t border-white/5 space-y-4">
-                        <div className="flex items-start gap-2 text-sm text-neutral-300">
+                        <div className="flex items-start gap-2 text-sm text-neutral-400">
                           <MapPin className="w-4 h-4 text-orange-500 shrink-0 mt-0.5" />
-                          <p className="leading-relaxed">{selectedOrder.delivery_address || selectedOrder.address}</p>
+                          <p className="leading-relaxed font-medium text-neutral-300">{selectedOrder.delivery_address || selectedOrder.address}</p>
                         </div>
                         
                         {/* Map Preview */}
@@ -606,16 +700,16 @@ export default function CentralCashierDashboard() {
                         
                         {/* Delivery Actions */}
                         <div className="grid grid-cols-2 gap-2">
-                          <a href={`https://www.google.com/maps?q=${selectedOrder.latitude},${selectedOrder.longitude}`} target="_blank" rel="noreferrer" className="py-2.5 bg-white/5 hover:bg-white/10 rounded-xl text-xs font-bold text-white flex items-center justify-center gap-2 transition-colors">
+                          <a href={`https://www.google.com/maps?q=${selectedOrder.latitude},${selectedOrder.longitude}`} target="_blank" rel="noreferrer" className="py-2.5 bg-neutral-900 hover:bg-neutral-800 rounded-xl text-xs font-bold text-neutral-400 flex items-center justify-center gap-2 transition-colors">
                             Google Maps
                           </a>
-                          <a href={`https://waze.com/ul?ll=${selectedOrder.latitude},${selectedOrder.longitude}&navigate=yes`} target="_blank" rel="noreferrer" className="py-2.5 bg-blue-500/10 hover:bg-blue-500/20 rounded-xl text-xs font-bold text-blue-400 flex items-center justify-center gap-2 transition-colors">
+                          <a href={`https://waze.com/ul?ll=${selectedOrder.latitude},${selectedOrder.longitude}&navigate=yes`} target="_blank" rel="noreferrer" className="py-2.5 bg-neutral-900 hover:bg-neutral-800 rounded-xl text-xs font-bold text-blue-400 flex items-center justify-center gap-2 transition-colors">
                             Waze
                           </a>
-                          <button onClick={() => { navigator.clipboard.writeText(selectedOrder.delivery_address || selectedOrder.address); Toast.fire({ icon: 'success', title: 'Alamat disalin' }) }} className="py-2.5 bg-white/5 hover:bg-white/10 rounded-xl text-xs font-bold text-neutral-400 flex items-center justify-center gap-2 transition-colors">
+                          <button onClick={() => { navigator.clipboard.writeText(selectedOrder.delivery_address || selectedOrder.address); Toast.fire({ icon: 'success', title: 'Alamat disalin' }) }} className="py-2.5 bg-neutral-900 hover:bg-neutral-800 rounded-xl text-xs font-bold text-neutral-400 flex items-center justify-center gap-2 transition-colors">
                             Copy Alamat
                           </button>
-                          <button onClick={() => { navigator.clipboard.writeText(`${selectedOrder.latitude}, ${selectedOrder.longitude}`); Toast.fire({ icon: 'success', title: 'Koordinat disalin' }) }} className="py-2.5 bg-white/5 hover:bg-white/10 rounded-xl text-xs font-bold text-neutral-400 flex items-center justify-center gap-2 transition-colors">
+                          <button onClick={() => { navigator.clipboard.writeText(`${selectedOrder.latitude}, ${selectedOrder.longitude}`); Toast.fire({ icon: 'success', title: 'Koordinat disalin' }) }} className="py-2.5 bg-neutral-900 hover:bg-neutral-800 rounded-xl text-xs font-bold text-neutral-400 flex items-center justify-center gap-2 transition-colors">
                             Copy GPS
                           </button>
                         </div>
@@ -625,20 +719,29 @@ export default function CentralCashierDashboard() {
                     {selectedOrder.notes && (
                       <div className="pt-4 border-t border-white/5">
                         <span className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest block mb-1">Catatan Pesanan</span>
-                        <p className="text-sm text-yellow-500/90 font-medium italic">"{selectedOrder.notes}"</p>
+                        <p className="text-sm text-orange-400 font-medium italic">"{selectedOrder.notes}"</p>
                       </div>
                     )}
                   </div>
 
                   {/* Order Items */}
-                  <div>
-                    <h4 className="text-xs font-bold text-neutral-500 uppercase tracking-widest mb-3">Daftar Produk</h4>
+                  <div className="bg-[#1A1A1A] p-5 rounded-2xl border border-white/5">
+                    <div className="flex justify-between items-end mb-4">
+                      <div>
+                        <h4 className="text-xs font-bold text-neutral-500 uppercase tracking-widest">Daftar Produk</h4>
+                        <div className="flex gap-3 mt-1">
+                          <span className="text-sm font-bold text-neutral-300">{selectedOrder.online_order_items?.length || 0} Varian</span>
+                          <span className="text-sm font-bold text-orange-500">{selectedOrder.online_order_items?.reduce((a: number, b: any) => a + b.quantity, 0) || 0} Cup</span>
+                        </div>
+                      </div>
+                    </div>
+                    
                     <div className="space-y-3">
                       {selectedOrder.online_order_items?.map((item: any) => (
-                        <div key={item.id} className="flex justify-between items-center bg-[#18181B] p-4 rounded-xl border border-white/5">
+                        <div key={item.id} className="flex justify-between items-center py-3 border-b border-white/5 last:border-0">
                           <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-lg bg-neutral-800 flex items-center justify-center font-bold text-xs">{item.qty}x</div>
-                            <span className="font-bold text-sm text-neutral-300">{item.product_name}</span>
+                            <div className="w-8 h-8 rounded-lg bg-[#27272A] flex items-center justify-center font-bold text-orange-500 text-xs">{item.quantity}x</div>
+                            <span className="font-bold text-sm text-white">{item.product_name}</span>
                           </div>
                           <span className="font-mono text-sm font-bold text-white">{formatRupiah(item.subtotal)}</span>
                         </div>
@@ -647,15 +750,15 @@ export default function CentralCashierDashboard() {
                   </div>
 
                   {/* Summary */}
-                  <div className="bg-[#18181B] p-5 rounded-2xl border border-white/5 space-y-3">
+                  <div className="bg-[#1A1A1A] p-5 rounded-2xl border border-white/5 space-y-3">
                     <div className="flex justify-between text-sm text-neutral-400">
                       <span>Subtotal</span>
-                      <span className="font-mono">{formatRupiah(selectedOrder.grand_total - (selectedOrder.shipping_fee || 0))}</span>
+                      <span className="font-mono text-neutral-200">{formatRupiah(selectedOrder.grand_total - (selectedOrder.shipping_fee || selectedOrder.delivery_fee || 0))}</span>
                     </div>
                     <div className="flex justify-between text-sm text-neutral-400">
                       <span>Delivery Fee</span>
-                      <span className="font-mono text-emerald-400">
-                        {selectedOrder.shipping_fee === 0 ? 'FREE ONGKIR' : formatRupiah(selectedOrder.shipping_fee || 0)}
+                      <span className="font-mono text-emerald-500 font-medium">
+                        {(selectedOrder.shipping_fee || selectedOrder.delivery_fee) === 0 ? 'FREE ONGKIR' : formatRupiah(selectedOrder.shipping_fee || selectedOrder.delivery_fee || 0)}
                       </span>
                     </div>
                     <div className="border-t border-white/5 pt-3 mt-3 flex justify-between items-center">
@@ -664,40 +767,45 @@ export default function CentralCashierDashboard() {
                     </div>
                     <div className="flex justify-between items-center pt-2">
                       <span className="text-xs font-bold text-neutral-500 uppercase">Metode Bayar</span>
-                      <span className="text-xs font-black text-cyan-400 px-2 py-1 bg-cyan-500/10 rounded-md">QRIS</span>
+                      <span className="text-xs font-black text-blue-400 px-2 py-1 bg-blue-500/10 rounded-md border border-blue-500/20">QRIS</span>
                     </div>
                   </div>
 
                 </div>
 
-                <div className="p-6 border-t border-white/5 bg-[#0A0A0A] shrink-0">
-                  {selectedOrder.payment_status === 'WAITING_CONFIRMATION' && (
-                    <button onClick={() => updateOrderStatus(selectedOrder.id, 'PAID', 'PROCESSING')} className="w-full py-4 rounded-2xl bg-emerald-500 text-white font-black text-sm uppercase tracking-widest hover:bg-emerald-400 transition-colors">
-                      Verifikasi Pembayaran QRIS
-                    </button>
+                <div className="p-6 border-t border-white/5 bg-[#111111] shrink-0">
+                  {selectedOrder.order_status === 'WAITING_CONFIRMATION' && (
+                    <div className="grid grid-cols-2 gap-3 w-full">
+                      <button onClick={() => updateOrderStatus(selectedOrder.id, 'PAID', 'REJECTED')} className="w-full py-4 rounded-xl bg-[#27272A] text-red-500 font-black text-sm uppercase tracking-widest hover:bg-red-500/20 transition-colors">
+                        Tolak
+                      </button>
+                      <button onClick={() => updateOrderStatus(selectedOrder.id, 'PAID', 'PROCESSING')} className="w-full py-4 rounded-xl bg-emerald-500 text-white shadow-lg shadow-emerald-500/20 font-black text-sm uppercase tracking-widest hover:bg-emerald-600 transition-colors">
+                        Terima
+                      </button>
+                    </div>
                   )}
                   {selectedOrder.payment_status === 'PAID' && selectedOrder.order_status === 'PROCESSING' && (
-                    <button onClick={() => updateOrderStatus(selectedOrder.id, 'PAID', 'PREPARING')} className="w-full py-4 rounded-2xl bg-orange-500 text-white font-black text-sm uppercase tracking-widest hover:bg-orange-400 transition-colors flex items-center justify-center gap-2">
+                    <button onClick={() => updateOrderStatus(selectedOrder.id, 'PAID', 'PREPARING')} className="w-full py-4 rounded-xl bg-orange-500 text-white shadow-lg shadow-orange-500/20 font-black text-sm uppercase tracking-widest hover:bg-orange-600 transition-colors flex items-center justify-center gap-2">
                       <ChefHat className="w-5 h-5" /> Mulai Siapkan Pesanan
                     </button>
                   )}
                   {selectedOrder.order_status === 'PREPARING' && (
-                    <button onClick={() => updateOrderStatus(selectedOrder.id, 'PAID', 'READY_FOR_DELIVERY')} className="w-full py-4 rounded-2xl bg-orange-500 text-white font-black text-sm uppercase tracking-widest hover:bg-orange-400 transition-colors flex items-center justify-center gap-2">
+                    <button onClick={() => updateOrderStatus(selectedOrder.id, 'PAID', 'READY_FOR_DELIVERY')} className="w-full py-4 rounded-xl bg-orange-500 text-white shadow-lg shadow-orange-500/20 font-black text-sm uppercase tracking-widest hover:bg-orange-600 transition-colors flex items-center justify-center gap-2">
                       <Package className="w-5 h-5" /> Pesanan Siap Dikirim
                     </button>
                   )}
                   {selectedOrder.order_status === 'READY_FOR_DELIVERY' && selectedOrder.order_type === 'DELIVERY' && (
-                    <button onClick={() => updateOrderStatus(selectedOrder.id, 'PAID', 'ON_THE_WAY')} className="w-full py-4 rounded-2xl bg-blue-500 text-white font-black text-sm uppercase tracking-widest hover:bg-blue-400 transition-colors flex items-center justify-center gap-2">
+                    <button onClick={() => updateOrderStatus(selectedOrder.id, 'PAID', 'ON_THE_WAY')} className="w-full py-4 rounded-xl bg-blue-600 text-white shadow-lg shadow-blue-600/20 font-black text-sm uppercase tracking-widest hover:bg-blue-700 transition-colors flex items-center justify-center gap-2">
                       <Car className="w-5 h-5" /> Kurir Berangkat
                     </button>
                   )}
                   {(selectedOrder.order_status === 'ON_THE_WAY' || (selectedOrder.order_status === 'READY_FOR_DELIVERY' && selectedOrder.order_type === 'TAKEAWAY')) && (
-                    <button onClick={() => completeOnlineOrder(selectedOrder.id)} className="w-full py-4 rounded-2xl bg-neutral-800 text-emerald-500 font-black text-sm uppercase tracking-widest hover:bg-neutral-700 transition-colors flex items-center justify-center gap-2">
-                      <CheckCircle2 className="w-5 h-5" /> Pesanan Selesai
+                    <button onClick={() => completeOnlineOrder(selectedOrder.id)} className="w-full py-4 rounded-xl bg-neutral-900 text-white shadow-lg font-black text-sm uppercase tracking-widest hover:bg-black transition-colors flex items-center justify-center gap-2">
+                      <CheckCircle2 className="w-5 h-5 text-emerald-400" /> Selesaikan Pesanan
                     </button>
                   )}
                   {selectedOrder.order_status === 'COMPLETED' && (
-                    <div className="w-full py-4 rounded-2xl bg-emerald-500/10 text-emerald-500 font-black text-sm uppercase tracking-widest text-center flex items-center justify-center gap-2">
+                    <div className="w-full py-4 rounded-xl bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 font-black text-sm uppercase tracking-widest text-center flex items-center justify-center gap-2">
                       <CheckCircle2 className="w-5 h-5" /> Transaksi Selesai
                     </div>
                   )}
@@ -708,6 +816,29 @@ export default function CentralCashierDashboard() {
         </AnimatePresence>
 
       </main>
+
+      <ModalAwalKasirDialog 
+        isOpen={showModalAwal} 
+        userId={currentUser?.id} 
+        userName={currentUser?.name} 
+        onShiftOpened={(shift) => {
+          setActiveShift(shift);
+          setShowModalAwal(false);
+        }} 
+      />
+
+      <TutupShiftKasirModal
+        isOpen={showTutupShift}
+        onClose={() => setShowTutupShift(false)}
+        shift={activeShift}
+        expenses={operationalExpenses}
+        totalCashSales={shiftTransactions.filter(t => t.payment_method === 'CASH').reduce((sum, t) => sum + Number(t.total_amount), 0)}
+        onShiftClosed={() => {
+          setShowTutupShift(false);
+          setActiveShift(null);
+          setShowModalAwal(true);
+        }}
+      />
     </div>
   );
 }
