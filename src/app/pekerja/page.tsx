@@ -21,7 +21,7 @@ import {
   getAvailableStockForShift
 } from "@/services/backendService";
 import { supabase } from "@/lib/supabase";
-import { LogOut, Plus, Minus, X, User, Loader2, AlertTriangle, CheckCircle2, Store } from "lucide-react";
+import { LogOut, Plus, Minus, X, User, Loader2, AlertTriangle, CheckCircle2, Store, Search } from "lucide-react";
 import CinematicLoader from "@/components/CinematicLoader";
 import { saveActiveShift, clearActiveShift, getActiveShift } from "@/services/shiftStorageService";
 import { checkActiveShiftInSupabase, syncRecordToStorageCache } from "@/services/shiftAuthService";
