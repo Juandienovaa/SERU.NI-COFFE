@@ -72,6 +72,20 @@ export default function CloseShiftModal({
     }
   }, [isOpen, shiftId]);
 
+  useEffect(() => {
+    if (isOpen && summaryData) {
+      console.group("SHIFT CLOSING");
+      console.log("Active Shift:", shiftId);
+      console.log("Sales Query:", summaryData);
+      console.log("Inventory Query:", inventoryData);
+      console.log("Cash:", summaryData.cashRevenue);
+      console.log("QRIS:", summaryData.qrisRevenue);
+      console.log("Total:", summaryData.totalRevenue);
+      console.log("Products:", productNames);
+      console.groupEnd();
+    }
+  }, [isOpen, summaryData, shiftId, inventoryData, productNames]);
+
   // Keyboard support: Escape to close when not loading
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {

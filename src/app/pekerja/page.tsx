@@ -304,8 +304,13 @@ export default function WorkerDashboard() {
     try {
       setLoading(true);
       const price = getPrice(confirmSale.productId);
+      
+      if (price <= 0) {
+        throw new Error("Harga produk tidak valid (Rp0). Penjualan ditolak untuk menghindari data korup.");
+      }
+      
       const metodeBayar = confirmSale.paymentMethod || 'CASH';
-      await catatPenjualanProduk(activeShift.id, confirmSale.productId, 1, metodeBayar, price);
+      await catatPenjualanProduk(activeShift.id || activeShift.active_shift_id, confirmSale.productId, 1, metodeBayar, price);
       
       let inv = await getLiveStockByShiftId(activeShift.id);
       if (!inv || inv.length === 0) {
@@ -412,8 +417,11 @@ export default function WorkerDashboard() {
 
   // ================= HITUNG RINGKASAN SHIFT =================
   const getPrice = (productId: any) => {
-    const p = products.find(prod => String(prod.id) === String(productId));
-    if (!p) return 0;
+    const p = products.find(prod => String(prod.product_id) === String(productId));
+    if (!p) {
+      console.warn(`[getPrice] Product with ID ${productId} not found in catalog.`);
+      return 0;
+    }
     return typeof p.price === 'number' ? p.price : parseInt(String(p.price).replace(/\D/g, '')) || 0;
   };
 
