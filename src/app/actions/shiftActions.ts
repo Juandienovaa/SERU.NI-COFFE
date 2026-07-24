@@ -59,25 +59,14 @@ export async function closeShift(
   try {
     const supabase = createAdminClient();
 
-    // Tutup shift secara finansial (Atomik RPC dari 01_enterprise_migration.sql)
+    // Tutup shift secara finansial (Atomik RPC dari ERP V2)
     const { error: finError } = await supabase.rpc("rpc_close_shift_financials", {
       p_shift_id: shiftId,
-      p_cash_in_drawer: cashInDrawer
+      p_end_cash: cashInDrawer
     });
     
     if (finError) {
-      // Jika RPC tidak ada (belum di-run), fallback update status saja
-      if (finError.message?.includes("Could not find the function") || finError.code === "PGRST202") {
-        console.warn("⚠️ rpc_close_shift_financials tidak ditemukan. Menggunakan fallback Service Role Update.");
-        await supabase.from("shifts").update({ 
-          status: "CLOSED", 
-          closed_at: new Date().toISOString(),
-          end_cash: cashInDrawer,
-          audit_status: auditStatus
-        }).eq("id", shiftId);
-      } else {
-        throw finError;
-      }
+      throw finError;
     }
 
     // Kembalikan stok yang tersisa

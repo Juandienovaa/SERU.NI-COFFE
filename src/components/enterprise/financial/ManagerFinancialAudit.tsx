@@ -2,10 +2,17 @@
 
 import React, { useState, useEffect } from "react";
 import { FinancialToolbar, PeriodType } from "./FinancialToolbar";
-import { BarChart3, Loader2, Store, Search, Filter, AlertTriangle, CheckCircle2, FileText, Download, TrendingUp, Clock, Activity, Flame } from "lucide-react";
+import { BarChart3, Loader2, Store, Search, Filter, AlertTriangle, CheckCircle2, FileText, Download, TrendingUp, Clock, Activity, Flame, ChevronDown, ChevronUp } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { supabase } from "@/lib/supabase";
 import { getMasterAuditPayload } from "@/app/actions/financialAuditActions";
+import { generateShiftAuditPDF } from "@/services/pdfShiftAuditGenerator";
+import { generateCrewSettlementPDF } from "@/services/pdfCrewSettlementGenerator";
+import { generateFinancialAuditPDF } from "@/services/pdfFinancialAuditGenerator";
+import Swal from 'sweetalert2';
+import withReactContent from 'sweetalert2-react-content';
+
+const MySwal = withReactContent(Swal);
 
 function formatRupiah(amount: number) {
   return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 }).format(amount);
@@ -16,6 +23,8 @@ export const ManagerFinancialAudit = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [payload, setPayload] = useState<any>(null);
   const [isExporting, setIsExporting] = useState(false);
+  const [downloadingShiftId, setDownloadingShiftId] = useState<string | null>(null);
+  const [expandedShiftId, setExpandedShiftId] = useState<string | null>(null);
 
   const fetchFinancialData = async () => {
     setIsLoading(true);
@@ -63,7 +72,72 @@ export const ManagerFinancialAudit = () => {
   };
 
   const handleExportPDF = async () => {
-    alert("Enterprise PDF Generator logic (to be integrated)...");
+    try {
+      MySwal.fire({
+        title: 'Mempersiapkan PDF...',
+        html: 'Mohon tunggu sebentar, sedang menyusun Laporan Audit Finansial.',
+        allowOutsideClick: false,
+        didOpen: () => {
+          MySwal.showLoading();
+        }
+      });
+      
+      const periodLabel = period === 'today' ? 'Hari Ini' : period === 'month' ? 'Bulan Ini' : 'Tahun Ini';
+      
+      // Allow UI to update and render SweetAlert
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      generateFinancialAuditPDF(payload, periodLabel);
+      
+      MySwal.fire({
+        icon: 'success',
+        title: 'Berhasil!',
+        text: 'Laporan Audit PDF berhasil diunduh.',
+        confirmButtonColor: '#ea580c'
+      });
+    } catch (error) {
+      console.error(error);
+      MySwal.fire({
+        icon: 'error',
+        title: 'Gagal',
+        text: 'Terjadi kesalahan saat membuat file PDF.',
+        confirmButtonColor: '#ea580c'
+      });
+    }
+  };
+
+  const handleDownloadShift = async (shift: any) => {
+    try {
+      setDownloadingShiftId(shift.shift_id);
+      const { data: expenses } = await supabase.from('operational_expenses').select('*').eq('shift_id', shift.shift_id);
+      const { data: transactions } = await supabase.from('transactions').select('*').eq('shift_id', shift.shift_id).order('created_at', { ascending: false });
+      
+      const mappedShift = {
+          ...shift,
+          id: shift.shift_id,
+          outlet_id: shift.outlet_id || shift.location || "Grobak/Outlet",
+          created_at: shift.start_time,
+          closed_at: shift.end_time,
+          kas_fisik: shift.actual_cash,
+          kas_seharusnya: shift.expected_cash,
+          selisih: shift.cash_difference,
+          audit_status: Number(shift.cash_difference) === 0 ? "SESUAI" : (Number(shift.cash_difference) < 0 ? "SHORTAGE" : "OVERAGE"),
+          modal_awal: shift.starting_cash,
+          omset_tunai: shift.cash_revenue,
+          omset_qris: shift.qris_revenue,
+          pengeluaran_operasional: shift.operational_expense
+      };
+
+      if (!shift.crew_name || shift.crew_name.toLowerCase() === 'system' || shift.crew_name.toLowerCase().includes('kasir pusat')) {
+        generateShiftAuditPDF(mappedShift, expenses || [], transactions || []);
+      } else {
+        generateCrewSettlementPDF(mappedShift, expenses || [], transactions || []);
+      }
+    } catch (err) {
+      console.error("Failed to download shift PDF:", err);
+    } finally {
+      setDownloadingShiftId(null);
+    }
   };
 
   if (isLoading && !payload) {
@@ -112,7 +186,7 @@ export const ManagerFinancialAudit = () => {
           period={period}
           setPeriod={setPeriod}
           onRefresh={fetchFinancialData}
-          onExport={handleExportExcel} // override for now
+          onExport={handleExportExcel}
         />
         
         <div className="flex items-center gap-3">
@@ -164,9 +238,9 @@ export const ManagerFinancialAudit = () => {
                 </span>
                 <div>
                   <p className="text-sm font-medium text-white">
-                    {ex.exception_type === 'SHORTAGE' ? 'Kekurangan Kas' : 'Kelebihan Kas'} sebesar {formatRupiah(Math.abs(ex.selisih_kas))}
+                    {ex.exception_type === 'SHORTAGE' ? 'Kekurangan Kas' : 'Kelebihan Kas'} sebesar {formatRupiah(ex.amount)}
                   </p>
-                  <p className="text-xs text-neutral-500 mt-1">Crew: {ex.crew_name} | Shift ditutup pada: {new Date(ex.closed_at).toLocaleString('id-ID')}</p>
+                  <p className="text-xs text-neutral-500 mt-1">Crew: {ex.crew_name} | Shift ditutup pada: {new Date(ex.end_time).toLocaleString('id-ID')}</p>
                 </div>
               </div>
             ))}
@@ -196,8 +270,16 @@ export const ManagerFinancialAudit = () => {
                 </tr>
               </thead>
               <tbody>
-                {payload?.shiftMaster?.map((shift: any) => (
-                  <tr key={shift.shift_id} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
+                {payload?.shiftMaster?.map((shift: any) => {
+                  const isKasirPusat = !shift.crew_name || shift.crew_name.toLowerCase() === 'system' || shift.crew_name.toLowerCase().includes('kasir pusat');
+                  const isExpanded = expandedShiftId === shift.shift_id;
+                  
+                  return (
+                  <React.Fragment key={shift.shift_id}>
+                  <tr 
+                    onClick={() => setExpandedShiftId(isExpanded ? null : shift.shift_id)}
+                    className="border-b border-white/5 hover:bg-white/[0.05] transition-colors cursor-pointer"
+                  >
                     <td className="p-4">
                       <div className="flex items-center gap-2 mb-1">
                         <p className="text-sm font-bold text-white">{shift.crew_name || 'System'}</p>
@@ -205,28 +287,37 @@ export const ManagerFinancialAudit = () => {
                           {shift.shift_status}
                         </span>
                       </div>
+                      <p className="text-[10px] font-medium text-orange-400/80 uppercase tracking-widest mb-1">
+                        {shift.outlet_id || shift.location || "Grobak/Outlet"}
+                      </p>
                       <p className="text-xs text-neutral-500">
-                        {shift.shift_status === 'OPEN' ? '🟢 Sedang Berjalan' : new Date(shift.closed_at).toLocaleString('id-ID')}
+                        {shift.shift_status === 'OPEN' ? '🟢 Sedang Berjalan' : new Date(shift.end_time).toLocaleString('id-ID')}
                       </p>
                     </td>
                     <td className="p-4">
                       <p className="text-sm font-medium text-white">{formatRupiah(shift.gross_revenue)}</p>
-                      <p className="text-xs text-neutral-500 mt-1">{shift.cup_terjual} Cup</p>
+                      <p className="text-xs text-neutral-500 mt-1">{shift.total_cups} Cup</p>
                     </td>
                     <td className="p-4">
-                      <p className="text-sm font-medium text-red-400">{formatRupiah(shift.pengeluaran_operasional)}</p>
+                      <p className="text-sm font-medium text-red-400">{formatRupiah(shift.operational_expense)}</p>
                     </td>
                     <td className="p-4">
-                      {shift.shift_status === 'OPEN' ? (
+                      {!isKasirPusat ? (
+                        <p className="text-xs text-neutral-500 italic">Settlement Crew (N/A)</p>
+                      ) : shift.shift_status === 'OPEN' ? (
                          <p className="text-xs text-neutral-500 italic">Menunggu Tutup Shift</p>
                       ) : (
-                        <p className={`text-sm font-bold ${shift.selisih_kas < 0 ? 'text-red-400' : shift.selisih_kas > 0 ? 'text-yellow-400' : 'text-emerald-400'}`}>
-                          {formatRupiah(shift.selisih_kas)}
+                        <p className={`text-sm font-bold ${Number(shift.cash_difference) < 0 ? 'text-red-400' : Number(shift.cash_difference) > 0 ? 'text-yellow-400' : 'text-emerald-400'}`}>
+                          {formatRupiah(Number(shift.cash_difference))}
                         </p>
                       )}
                     </td>
-                    <td className="p-4">
-                      {shift.shift_status === 'OPEN' ? (
+                    <td className="p-4 flex items-center justify-between">
+                      {!isKasirPusat ? (
+                        <span className="px-2 py-1 text-xs font-bold rounded bg-neutral-800 text-neutral-500">
+                          -
+                        </span>
+                      ) : shift.shift_status === 'OPEN' ? (
                         <span className="px-2 py-1 text-xs font-bold rounded bg-neutral-800 text-neutral-500">
                           -
                         </span>
@@ -235,9 +326,83 @@ export const ManagerFinancialAudit = () => {
                           {shift.audit_score}/100
                         </span>
                       )}
+                      
+                      <div className="flex items-center gap-2">
+                        {shift.shift_status === 'CLOSED' && (
+                          <button 
+                            onClick={(e) => { e.stopPropagation(); handleDownloadShift(shift); }}
+                            disabled={downloadingShiftId === shift.shift_id}
+                            className="p-2 hover:bg-white/10 rounded-lg transition-colors disabled:opacity-50"
+                            title="Download PDF"
+                          >
+                            {downloadingShiftId === shift.shift_id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4 text-white/70" />}
+                          </button>
+                        )}
+                        {isExpanded ? <ChevronUp className="w-5 h-5 text-neutral-500" /> : <ChevronDown className="w-5 h-5 text-neutral-500" />}
+                      </div>
                     </td>
                   </tr>
-                ))}
+                  {/* EXPANDED ROW FOR CREW GROBAK DETAILS */}
+                  <AnimatePresence>
+                    {isExpanded && (
+                      <motion.tr
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="bg-black/20"
+                      >
+                        <td colSpan={5} className="p-0 border-b border-white/5 overflow-hidden">
+                          <div className="p-4 flex flex-col md:flex-row gap-6 items-start justify-between border-l-2 border-orange-500 bg-white/[0.01]">
+                            {!isKasirPusat ? (
+                              <div className="w-full">
+                                <h4 className="text-xs font-bold text-neutral-400 uppercase tracking-wider mb-4">Rincian Settlement Crew</h4>
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                  <div className="bg-white/5 rounded-xl p-4">
+                                    <p className="text-xs text-neutral-400 mb-1">Total Cup Terjual</p>
+                                    <p className="text-lg font-bold text-white">{shift.total_cups || 0} Cup</p>
+                                  </div>
+                                  <div className="bg-white/5 rounded-xl p-4">
+                                    <p className="text-xs text-neutral-400 mb-1">Gross Cash (Fisik)</p>
+                                    <p className="text-lg font-bold text-white">{formatRupiah(shift.cash_revenue)}</p>
+                                  </div>
+                                  <div className="bg-white/5 rounded-xl p-4">
+                                    <p className="text-xs text-neutral-400 mb-1">Total QRIS</p>
+                                    <p className="text-lg font-bold text-white">{formatRupiah(shift.qris_revenue)}</p>
+                                  </div>
+                                  <div className="bg-white/5 rounded-xl p-4">
+                                    <p className="text-xs text-neutral-400 mb-1">Total Transaksi</p>
+                                    <p className="text-lg font-bold text-white">{formatRupiah(shift.gross_revenue)}</p>
+                                  </div>
+                                </div>
+                                <div className="mt-4 p-4 rounded-xl bg-orange-500/10 border border-orange-500/20 flex items-center justify-between">
+                                  <div>
+                                    <p className="text-sm font-medium text-orange-400">Bonus Crew (Target 100 Cup)</p>
+                                    <p className="text-xs text-orange-400/60 mt-1">
+                                      {shift.total_cups >= 100 ? "Mencapai target! Bonus Rp 50.000 diberikan." : `Belum capai target (kurang ${100 - (shift.total_cups || 0)} Cup).`}
+                                    </p>
+                                  </div>
+                                  <div className="text-right">
+                                    <p className="text-xs text-orange-400/80 mb-1">Potongan Bonus</p>
+                                    <p className="text-lg font-bold text-orange-400">-{formatRupiah(shift.total_cups >= 100 ? 50000 : 0)}</p>
+                                  </div>
+                                </div>
+                                <div className="mt-2 p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-between">
+                                  <p className="text-sm font-bold text-emerald-400">Net Cash (Setoran Kasir)</p>
+                                  <p className="text-xl font-black text-emerald-400">{formatRupiah(Math.max(0, shift.cash_revenue - (shift.total_cups >= 100 ? 50000 : 0)))}</p>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="w-full text-center py-4 text-neutral-500 text-sm">
+                                Detail kasir pusat tidak memiliki rincian settlement (hanya berlaku untuk crew grobak).
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                      </motion.tr>
+                    )}
+                  </AnimatePresence>
+                  </React.Fragment>
+                )})}
                 {(!payload?.shiftMaster || payload.shiftMaster.length === 0) && (
                   <tr>
                     <td colSpan={5} className="p-12 text-center text-neutral-500">

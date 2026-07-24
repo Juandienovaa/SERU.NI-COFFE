@@ -68,3 +68,24 @@ export async function addOperationalExpense(
     return { success: false, message: error.message || "Terjadi kesalahan internal server." };
   }
 }
+
+export async function getOperationalExpenses(shiftId: string): Promise<ActionResponse<any[]>> {
+  try {
+    const supabase = createAdminClient();
+    const { data, error } = await supabase
+      .from("operational_expenses")
+      .select("*")
+      .eq("shift_id", shiftId)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("[getOperationalExpenses] Error:", error);
+      return { success: false, message: "Gagal mengambil data pengeluaran." };
+    }
+
+    return { success: true, data: data || [] };
+  } catch (error: any) {
+    console.error("[getOperationalExpenses] Server Error:", error);
+    return { success: false, message: error.message || "Terjadi kesalahan internal server." };
+  }
+}

@@ -42,19 +42,31 @@ export function BukuKasTimeline({ shift, expenses, transactions }: BukuKasTimeli
       });
     }
 
-    // 2. Cash Sales
+    // 2. Transactions (CASH & QRIS)
     transactions.forEach(tx => {
-      // Only CASH transactions affect the cash drawer
       if (tx.payment_method === 'CASH') {
         data.push({
           id: `tx_${tx.id}`,
           type: 'CASH_SALE',
+          isQris: false,
           time: new Date(tx.created_at),
           amount: Number(tx.total_amount),
           label: 'Penjualan Cash',
           icon: Banknote,
-          color: 'text-emerald-500',
-          bg: 'bg-emerald-500/10'
+          color: 'text-green-500',
+          bg: 'bg-green-500/10'
+        });
+      } else if (tx.payment_method === 'QRIS' || tx.metode_bayar === 'QRIS') {
+        data.push({
+          id: `tx_${tx.id}`,
+          type: 'QRIS_SALE',
+          isQris: true,
+          time: new Date(tx.created_at),
+          amount: Number(tx.total_amount),
+          label: 'Penjualan QRIS',
+          icon: Banknote, // Use Banknote or Wallet
+          color: 'text-blue-400',
+          bg: 'bg-blue-400/10'
         });
       }
     });
@@ -76,10 +88,12 @@ export function BukuKasTimeline({ shift, expenses, transactions }: BukuKasTimeli
     // Sort chronologically (oldest first to calculate running balance correctly)
     data.sort((a, b) => a.time.getTime() - b.time.getTime());
 
-    // Calculate running balance
+    // Calculate running balance (hanya transaksi tunai/fisik)
     let currentBalance = 0;
     const dataWithBalance = data.map(item => {
-      currentBalance += item.amount;
+      if (!item.isQris) {
+        currentBalance += item.amount;
+      }
       return { ...item, balance: currentBalance };
     });
 
@@ -133,11 +147,17 @@ export function BukuKasTimeline({ shift, expenses, transactions }: BukuKasTimeli
 
                     <div className="text-left sm:text-right">
                       <div className={`text-xl font-black ${item.color}`}>
-                        {isPositive ? '+' : '-'} {formatCurrency(item.amount)}
+                        {isPositive ? '+' : '-'} {formatCurrency(item.amount)} {item.isQris ? '(QRIS)' : ''}
                       </div>
-                      <div className="text-sm font-bold text-neutral-400 mt-1">
-                        Saldo: <span className="text-white">{formatCurrency(item.balance)}</span>
-                      </div>
+                      {item.isQris ? (
+                        <div className="text-sm font-bold text-neutral-500 mt-1">
+                          Saldo Laci Tetap
+                        </div>
+                      ) : (
+                        <div className="text-sm font-bold text-neutral-400 mt-1">
+                          Saldo: <span className="text-white">{formatCurrency(item.balance)}</span>
+                        </div>
+                      )}
                     </div>
 
                   </div>

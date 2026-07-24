@@ -13,6 +13,7 @@ import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
 import dynamic from 'next/dynamic';
 import { getActiveKasirShiftAction } from "@/app/actions/shiftActions";
+import { getOperationalExpenses } from "@/app/actions/cashierActions";
 import { ModalAwalKasirDialog } from "@/components/pos/central-cashier/ModalAwalKasirDialog";
 import { OperasionalKasKasir } from "@/components/pos/central-cashier/OperasionalKasKasir";
 import { BukuKasTimeline } from "@/components/pos/central-cashier/BukuKasTimeline";
@@ -78,6 +79,7 @@ export default function CentralCashierDashboard() {
   // Offline POS State
   const [cart, setCart] = useState<{ product: ProductCatalogItem; qty: number }[]>([]);
   const [submittingOffline, setSubmittingOffline] = useState(false);
+  const [uangDiterima, setUangDiterima] = useState<number | ''>('');
 
   // Online Orders State
   const { orders: onlineOrders, loading: onlineLoading, setOrders: setOnlineOrders } = useRealtimeOrders({ limit: 50 });
@@ -123,8 +125,10 @@ export default function CentralCashierDashboard() {
           setActiveShift(shift);
           
           // Load expenses
-          const { data: exp } = await supabase.from("operational_expenses").select("*").eq("shift_id", shift.id).order("created_at", { ascending: false });
-          if (exp) setOperationalExpenses(exp);
+          const expRes = await getOperationalExpenses(shift.id);
+          if (expRes.success && expRes.data) {
+            setOperationalExpenses(expRes.data);
+          }
 
           // Load transactions for this shift
           const { data: txs } = await supabase.from("transactions").select("*").eq("shift_id", shift.id).order("created_at", { ascending: false });
@@ -217,9 +221,11 @@ export default function CentralCashierDashboard() {
             outlet_id: "ONLINE",
             cashier_id: currentUser?.id || "KASIR",
             payment_method: 'QRIS',
+            metode_bayar: 'QRIS',
             cash_amount: 0,
             qris_amount: order.grand_total,
             total_amount: order.grand_total,
+            total_harga: order.grand_total,
             total_items: order.online_order_items.reduce((acc: number, item: any) => acc + item.qty, 0),
             is_central_cashier: true,
             order_type: 'ONLINE',
@@ -272,13 +278,19 @@ export default function CentralCashierDashboard() {
   // OFFLINE POS LOGIC
   // ----------------------------------------------------
   const handleAddToCart = (p: ProductCatalogItem) => {
-    const inv = inventory.find(i => i.product_id === p.product_id);
-    if (!inv || inv.current_stock <= 0) return;
+    const isTracked = p.is_stock_tracked !== false;
+    let maxStock = Infinity;
+    
+    if (isTracked) {
+      const inv = inventory.find(i => i.product_id === p.product_id);
+      if (!inv || inv.current_stock <= 0) return;
+      maxStock = inv.current_stock;
+    }
 
     setCart((prev: { product: ProductCatalogItem; qty: number }[]) => {
       const existing = prev.find(item => item.product.product_id === p.product_id);
       if (existing) {
-        if (existing.qty >= inv.current_stock) return prev;
+        if (existing.qty >= maxStock) return prev;
         return prev.map(item => item.product.product_id === p.product_id ? { ...item, qty: item.qty + 1 } : item);
       }
       return [...prev, { product: p, qty: 1 }];
@@ -306,6 +318,8 @@ export default function CentralCashierDashboard() {
     try {
       // 1. Kurangi stok product_inventory dan catat inventory_movements
       for (const item of cart) {
+        if (item.product.is_stock_tracked === false) continue; // Bypass stock deduction for untracked items
+
         const { data: currentInv } = await supabase
           .from("product_inventory")
           .select("current_stock")
@@ -363,8 +377,9 @@ export default function CentralCashierDashboard() {
         }));
         if (txs.length > 0) await supabase.from("transaction_items").insert(txs);
       }
-
+        
       setCart([]);
+      setUangDiterima('');
       MySwal.fire({ icon: 'success', title: 'Pesanan Berhasil', background: '#18181b', color: '#ffffff', timer: 1500, showConfirmButton: false, customClass: { popup: 'border border-[#27272a] rounded-2xl' } });
       
       // Sinkronisasi UI
@@ -564,17 +579,20 @@ export default function CentralCashierDashboard() {
                 {/* Product Grid */}
                 <div className="flex-1 grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 h-fit">
                   {products.map(p => {
+                    const isTracked = p.is_stock_tracked !== false;
                     const inv = inventory.find(i => i.product_id === p.product_id);
                     const stock = inv?.current_stock || 0;
+                    const isSoldOut = isTracked && stock <= 0;
+                    
                     return (
-                      <button key={p.product_id} onClick={() => handleAddToCart(p)} disabled={stock <= 0} className={`p-4 rounded-2xl border text-left transition-all ${stock <= 0 ? 'bg-[#111111]/50 border-white/5 opacity-50' : 'bg-[#111111] border-white/5 hover:border-orange-500/30'}`}>
+                      <button key={p.product_id} onClick={() => handleAddToCart(p)} disabled={isSoldOut} className={`p-4 rounded-2xl border text-left transition-all ${isSoldOut ? 'bg-[#111111]/50 border-white/5 opacity-50' : 'bg-[#111111] border-white/5 hover:border-orange-500/30'}`}>
                         <div className="w-full aspect-square rounded-xl bg-black mb-3 overflow-hidden">
                           <img src={p.image} className="w-full h-full object-cover opacity-80" />
                         </div>
                         <h3 className="font-bold text-sm text-white truncate">{p.product_name}</h3>
                         <div className="flex justify-between items-center mt-2">
                           <span className="font-black text-orange-400">{formatRupiah(p.price || 0)}</span>
-                          <span className="text-[10px] font-bold text-neutral-500">Stok: {stock}</span>
+                          {isTracked && <span className="text-[10px] font-bold text-neutral-500">Stok: {stock}</span>}
                         </div>
                       </button>
                     );
@@ -602,14 +620,45 @@ export default function CentralCashierDashboard() {
                   </div>
 
                   <div className="border-t border-white/5 pt-4 space-y-4">
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm font-bold text-neutral-400">Total</span>
-                      <span className="font-black text-xl">{formatRupiah(offlineSubtotal)}</span>
+                    <div className="space-y-3">
+                      <div>
+                        <label className="text-xs font-bold text-neutral-400 mb-1 block">Uang Diterima (Rp)</label>
+                        <input 
+                          type="number"
+                          value={uangDiterima}
+                          onChange={(e) => setUangDiterima(e.target.value === '' ? '' : Number(e.target.value))}
+                          placeholder="0"
+                          className="w-full bg-zinc-800 border border-white/10 rounded-lg px-3 py-2 text-white font-bold focus:outline-none focus:border-orange-500 transition-colors font-mono"
+                        />
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-bold text-neutral-400">Total</span>
+                        <span className="font-black text-xl">{formatRupiah(offlineSubtotal)}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-bold text-neutral-400">Kembalian</span>
+                        {(() => {
+                           const kembalian = uangDiterima === '' ? 0 : Number(uangDiterima) - offlineSubtotal;
+                           return (
+                             <span className={`font-black text-lg ${uangDiterima === '' ? 'text-white' : kembalian < 0 ? 'text-red-500' : 'text-green-500'}`}>
+                               {uangDiterima === '' ? 'Rp 0' : formatRupiah(kembalian)}
+                             </span>
+                           );
+                        })()}
+                      </div>
                     </div>
-                    <button onClick={confirmCashPayment} disabled={cart.length === 0 || submittingOffline} className="w-full py-4 rounded-xl bg-white text-black font-black text-sm hover:scale-105 active:scale-95 transition-transform disabled:opacity-50">
+                    <button 
+                      onClick={confirmCashPayment} 
+                      disabled={cart.length === 0 || submittingOffline || (uangDiterima === '' ? false : (Number(uangDiterima) - offlineSubtotal < 0))} 
+                      className="w-full py-4 rounded-xl bg-white text-black font-black text-sm hover:scale-105 active:scale-95 transition-transform disabled:opacity-50 disabled:bg-neutral-600 disabled:text-neutral-300 disabled:hover:scale-100 disabled:cursor-not-allowed"
+                    >
                       BAYAR TUNAI
                     </button>
-                    <button onClick={confirmQrisPayment} disabled={cart.length === 0 || submittingOffline} className="w-full py-4 rounded-xl bg-orange-500 text-white font-black text-sm hover:scale-105 active:scale-95 transition-transform disabled:opacity-50">
+                    <button 
+                      onClick={confirmQrisPayment} 
+                      disabled={cart.length === 0 || submittingOffline} 
+                      className="w-full py-4 rounded-xl bg-orange-500 text-white font-black text-sm hover:scale-105 active:scale-95 transition-transform disabled:opacity-50 disabled:hover:scale-100 disabled:cursor-not-allowed"
+                    >
                       BAYAR QRIS
                     </button>
                   </div>
@@ -622,6 +671,7 @@ export default function CentralCashierDashboard() {
                   shift={activeShift} 
                   expenses={operationalExpenses} 
                   totalCashSales={shiftTransactions.filter(t => t.payment_method === 'CASH').reduce((sum, t) => sum + Number(t.total_amount), 0)} 
+                  onExpenseAdded={(exp) => setOperationalExpenses(prev => [exp, ...prev])}
                 />
               </motion.div>
             )}

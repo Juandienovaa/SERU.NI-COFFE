@@ -230,6 +230,14 @@ export async function catatPenjualanProduk(
     p_product_id: productId,
     p_qty: qty_terjual
   });
+  
+  try {
+    const { revalidatePath } = require("next/cache");
+    revalidatePath("/pekerja");
+    revalidatePath("/kasir/dashboard");
+  } catch (e) {
+    console.error("Failed to revalidate path:", e);
+  }
 
   const targetItem = updatedInventory.find((i: any) => i.product_id === productId);
   return { 

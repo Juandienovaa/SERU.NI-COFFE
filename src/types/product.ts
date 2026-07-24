@@ -12,4 +12,6 @@ export interface ProductCatalogItem {
   image?: string;
   price?: number;
   tags?: string[];
+  is_stock_tracked?: boolean;
+  is_offline_only?: boolean;
 }

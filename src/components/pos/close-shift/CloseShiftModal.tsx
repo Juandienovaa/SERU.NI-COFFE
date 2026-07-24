@@ -99,8 +99,8 @@ export default function CloseShiftModal({
 
   if (!isOpen) return null;
 
-  const totalPhysicalStock = summaryData?.totalPhysicalStock || 0;
-
+  const calculatedTotalSisaStok = (inventoryData || []).reduce((total, item: any) => total + (item.sisa || 0), 0);
+  
   const formatRupiah = (num: number) => {
     return new Intl.NumberFormat("id-ID", {
       style: "currency",
@@ -257,7 +257,9 @@ export default function CloseShiftModal({
                 <div className="flex justify-between items-center">
                   <span className="text-xs font-bold text-neutral-400">Sisa Stok Fisik</span>
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-black text-red-500">{summaryData.totalPhysicalStock} Item</span>
+                    <span className={`text-sm font-black ${calculatedTotalSisaStok === 0 ? 'text-green-500' : 'text-red-500'}`}>
+                      {calculatedTotalSisaStok} Item {calculatedTotalSisaStok === 0 && "(Clear)"}
+                    </span>
                     <button
                       type="button"
                       onClick={() => setShowStockDetails(!showStockDetails)}

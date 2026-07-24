@@ -130,9 +130,9 @@ export default function WorkerDashboard() {
           setWorkerName(activeUserShift.crew_name || crewName);
           setActiveShift(activeUserShift);
 
-          let inv = await getLiveStockByShiftId(activeUserShift.id);
+          let inv = activeUserShift.inventory_data || [];
           if (!inv || inv.length === 0) {
-            inv = activeUserShift.inventory_data || [];
+            inv = await getLiveStockByShiftId(activeUserShift.id);
           }
           if (isMounted) setLiveInventory(inv);
         } else {
@@ -311,13 +311,18 @@ export default function WorkerDashboard() {
       }
       
       const metodeBayar = confirmSale.paymentMethod || 'CASH';
-      await catatPenjualanProduk(activeShift.id || activeShift.active_shift_id, confirmSale.productId, 1, metodeBayar, price);
+      const result = await catatPenjualanProduk(activeShift.id || activeShift.active_shift_id, confirmSale.productId, 1, metodeBayar, price);
       
-      let inv = await getLiveStockByShiftId(activeShift.id);
-      if (!inv || inv.length === 0) {
-        inv = activeShift.inventory_data || [];
+      // Update UI state (Sisa Stok) immediately using the returned updated inventory
+      if (result && result.inventory_data) {
+        setLiveInventory(result.inventory_data);
+      } else {
+        let inv = await getLiveStockByShiftId(activeShift.id || activeShift.active_shift_id);
+        if (!inv || inv.length === 0) {
+          inv = activeShift.inventory_data || [];
+        }
+        setLiveInventory(inv);
       }
-      setLiveInventory(inv);
       // Hapus update omset_tunai manual yang lama.
       // Jika diperlukan, refetch shifts data disini, tapi biarkan Realtime update inventory.
       // Tutup modal setelah sukses
@@ -354,9 +359,9 @@ export default function WorkerDashboard() {
         
         // Fetch fresh inventory one last time from the Single Source of Truth
         // to ensure we have the absolute latest data before closing.
-        let inv = await getLiveStockByShiftId(activeShift.id);
+        let inv = latestShift.inventory_data || [];
         if (!inv || inv.length === 0) {
-          inv = activeShift.inventory_data || [];
+          inv = await getLiveStockByShiftId(activeShift.id);
         }
         setLiveInventory(inv);
       }

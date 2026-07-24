@@ -26,9 +26,10 @@ interface OperasionalKasKasirProps {
   shift: any;
   expenses: any[];
   totalCashSales: number;
+  onExpenseAdded?: (expense: any) => void;
 }
 
-export function OperasionalKasKasir({ shift, expenses, totalCashSales }: OperasionalKasKasirProps) {
+export function OperasionalKasKasir({ shift, expenses, totalCashSales, onExpenseAdded }: OperasionalKasKasirProps) {
   const [showAdd, setShowAdd] = useState(false);
   const [search, setSearch] = useState("");
   const [filterDate, setFilterDate] = useState("Hari Ini"); // "Hari Ini", "Minggu Ini", "Bulan Ini"
@@ -59,6 +60,9 @@ export function OperasionalKasKasir({ shift, expenses, totalCashSales }: Operasi
       const res = await addOperationalExpense(shift.id, shift.crew_name, formCategory, formDesc, amount, shift.user_id);
       if (!res.success) {
         throw new Error(res.message);
+      }
+      if (res.data && onExpenseAdded) {
+        onExpenseAdded(res.data);
       }
       MySwal.fire({
         icon: "success",
@@ -227,7 +231,7 @@ export function OperasionalKasKasir({ shift, expenses, totalCashSales }: Operasi
               initial={{ scale: 0.95, opacity: 0, y: 20 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.95, opacity: 0, y: 20 }}
-              className="w-full max-w-lg bg-[#111111] border border-white/10 rounded-[32px] p-8 shadow-2xl"
+              className="w-full max-w-4xl bg-[#111111] border border-white/10 rounded-[32px] p-8 shadow-2xl overflow-y-auto max-h-[90vh]"
             >
               <div className="flex items-center justify-between mb-8">
                 <h3 className="text-2xl font-black text-white">Catat Pengeluaran</h3>
@@ -236,7 +240,8 @@ export function OperasionalKasKasir({ shift, expenses, totalCashSales }: Operasi
                 </button>
               </div>
 
-              <form onSubmit={handleSubmit} className="space-y-6">
+              <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                {/* Left Column: Categories */}
                 <div>
                   <label className="block text-xs font-bold text-neutral-500 uppercase tracking-widest mb-3">Kategori</label>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
@@ -254,39 +259,44 @@ export function OperasionalKasKasir({ shift, expenses, totalCashSales }: Operasi
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-neutral-500 uppercase tracking-widest mb-2">Nominal</label>
-                  <div className="relative">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-neutral-400">Rp</span>
-                    <input
-                      type="text"
-                      value={formAmountStr}
-                      onChange={handleInputAmount}
-                      placeholder="0"
-                      className="w-full bg-white/5 border border-white/10 rounded-xl py-4 pl-12 pr-4 text-xl font-black text-white focus:border-orange-500 focus:outline-none transition-colors"
-                      required
-                    />
+                {/* Right Column: Input & Submit */}
+                <div className="space-y-6 flex flex-col justify-between">
+                  <div className="space-y-6">
+                    <div>
+                      <label className="block text-xs font-bold text-neutral-500 uppercase tracking-widest mb-2">Nominal</label>
+                      <div className="relative">
+                        <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-neutral-400">Rp</span>
+                        <input
+                          type="text"
+                          value={formAmountStr}
+                          onChange={handleInputAmount}
+                          placeholder="0"
+                          className="w-full bg-white/5 border border-white/10 rounded-xl py-4 pl-12 pr-4 text-xl font-black text-white focus:border-orange-500 focus:outline-none transition-colors"
+                          required
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-neutral-500 uppercase tracking-widest mb-2">Deskripsi (Opsional)</label>
+                      <input
+                        type="text"
+                        value={formDesc}
+                        onChange={e => setFormDesc(e.target.value)}
+                        placeholder="Contoh: Beli bensin motor..."
+                        className="w-full bg-white/5 border border-white/10 rounded-xl py-4 px-4 text-sm font-medium text-white focus:border-orange-500 focus:outline-none transition-colors"
+                      />
+                    </div>
                   </div>
-                </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-neutral-500 uppercase tracking-widest mb-2">Deskripsi (Opsional)</label>
-                  <input
-                    type="text"
-                    value={formDesc}
-                    onChange={e => setFormDesc(e.target.value)}
-                    placeholder="Contoh: Beli bensin motor..."
-                    className="w-full bg-white/5 border border-white/10 rounded-xl py-4 px-4 text-sm font-medium text-white focus:border-orange-500 focus:outline-none transition-colors"
-                  />
+                  <button
+                    type="submit"
+                    disabled={loading || !formAmountStr}
+                    className="w-full py-4 rounded-xl bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white font-black text-sm transition-all"
+                  >
+                    {loading ? "Menyimpan..." : "Simpan Pengeluaran"}
+                  </button>
                 </div>
-
-                <button
-                  type="submit"
-                  disabled={loading || !formAmountStr}
-                  className="w-full py-4 rounded-xl bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white font-black text-sm transition-all"
-                >
-                  {loading ? "Menyimpan..." : "Simpan Pengeluaran"}
-                </button>
               </form>
             </motion.div>
           </motion.div>

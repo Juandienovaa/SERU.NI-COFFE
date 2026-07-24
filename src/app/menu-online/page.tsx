@@ -7,12 +7,14 @@ import { Star, ShoppingCart, Plus, Minus, CheckCircle2, Coffee } from "lucide-re
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { fetchAllProducts } from "@/services/productService";
+import { getAvailableStockForShift } from "@/app/actions/legacyActions";
 import { ProductCatalogItem } from "@/types/product";
 import { useOnlineCart } from "@/store/useOnlineCart";
 import Swal from "sweetalert2";
 
 export default function MenuOnlinePage() {
   const [products, setProducts] = useState<ProductCatalogItem[]>([]);
+  const [stockMap, setStockMap] = useState<Record<number, number>>({});
   const [loading, setLoading] = useState(true);
   const [isMounted, setIsMounted] = useState(false);
   
@@ -29,10 +31,20 @@ export default function MenuOnlinePage() {
     setIsMounted(true);
     async function loadData() {
       try {
-        const res = await fetchAllProducts();
+        const [res, stockRes] = await Promise.all([
+          fetchAllProducts(),
+          getAvailableStockForShift()
+        ]);
+        
         if (res.success && res.data) {
           setProducts(res.data);
         }
+
+        const map: Record<number, number> = {};
+        stockRes.forEach((s: any) => {
+          map[s.product_id] = s.current_stock;
+        });
+        setStockMap(map);
       } catch (error) {
         console.error("Gagal mengambil produk:", error);
       } finally {
@@ -94,7 +106,7 @@ export default function MenuOnlinePage() {
   };
 
   // Filter products based on activeCategory
-  const filteredProducts = products.filter(p => p.status === "ACTIVE").filter(p => {
+  const filteredProducts = products.filter(p => p.status === "ACTIVE" && p.is_offline_only !== true).filter(p => {
     if (activeCategory === "Semua") return true;
     if (activeCategory === "COFFEE") return p.category === "Coffee";
     if (activeCategory === "NON-COFFEE") return p.category === "Non-Coffee";
@@ -179,11 +191,15 @@ export default function MenuOnlinePage() {
                     : "/cup-placeholder.png";
 
                   const qtyInCart = isMounted ? getProductQtyInCart(product.product_id) : 0;
+                  
+                  const isTracked = product.is_stock_tracked !== false;
+                  const stock = isTracked ? (stockMap[product.product_id] || 0) : Infinity;
+                  const isOutOfStock = isTracked && stock <= 0;
 
                   return (
                     <div 
                       key={product.product_id} 
-                      className="bg-white rounded-[24px] md:rounded-3xl overflow-hidden shadow-xl hover:shadow-2xl transition-shadow duration-300 flex flex-col border border-neutral-100 relative group"
+                      className={`bg-white rounded-[24px] md:rounded-3xl overflow-hidden shadow-xl hover:shadow-2xl transition-all duration-300 flex flex-col border border-neutral-100 relative group ${isOutOfStock ? 'opacity-50 grayscale' : ''}`}
                     >
                       {/* Image Area */}
                       <div className="relative w-full aspect-square bg-[#F5F5DC] flex items-center justify-center overflow-hidden">
@@ -247,7 +263,14 @@ export default function MenuOnlinePage() {
 
                         {/* ADD TO CART ACTION AREA */}
                         <div className="h-[42px] md:h-[52px] flex items-center justify-center mt-2 md:mt-0">
-                          {qtyInCart > 0 ? (
+                          {isOutOfStock ? (
+                            <button 
+                              disabled
+                              className="w-full h-full bg-gray-400 text-white font-bold text-xs md:text-sm rounded-full shadow-md flex items-center justify-center gap-1 md:gap-2 cursor-not-allowed"
+                            >
+                              HABIS
+                            </button>
+                          ) : qtyInCart > 0 ? (
                             <div className="flex items-center justify-between w-full bg-orange-50 rounded-full p-1 border border-orange-200 shadow-inner">
                               <button 
                                 onClick={() => handleDecreaseQty(product.product_id, qtyInCart)}
@@ -262,7 +285,8 @@ export default function MenuOnlinePage() {
                               
                               <button 
                                 onClick={() => handleIncreaseQty(product.product_id, qtyInCart)}
-                                className="w-8 h-8 md:w-[42px] md:h-[42px] rounded-full bg-orange-500 text-white shadow-sm hover:bg-orange-600 flex items-center justify-center transition-colors active:scale-95"
+                                disabled={isTracked && qtyInCart >= stock}
+                                className={`w-8 h-8 md:w-[42px] md:h-[42px] rounded-full shadow-sm flex items-center justify-center transition-colors active:scale-95 ${isTracked && qtyInCart >= stock ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-orange-500 text-white hover:bg-orange-600'}`}
                               >
                                 <Plus className="w-4 h-4 md:w-5 md:h-5" />
                               </button>

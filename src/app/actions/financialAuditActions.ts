@@ -44,43 +44,72 @@ export async function getMasterAuditPayload(periodStr: string): Promise<ActionRe
       endDate = d.toISOString().split('T')[0];
     }
 
-    // 1. Executive KPIs
-    const { data: kpiData, error: kpiErr } = await supabase.rpc("rpc_get_financial_dashboard", { start_date: startDate, end_date: endDate });
-    if (kpiErr) console.error("KPI Error:", kpiErr);
-
     // 2. Daily Closing Summary
     const { data: dailyData, error: dailyErr } = await supabase
       .from("vw_daily_summary")
       .select("*")
-      .gte("summary_date", startDate)
-      .lte("summary_date", endDate)
-      .order("summary_date", { ascending: false });
+      .gte("date", startDate)
+      .lte("date", endDate)
+      .order("date", { ascending: false });
     if (dailyErr) console.error("Daily Error:", dailyErr);
+
+    // Calculate KPI from dailyData
+    const kpi = {
+      gross_revenue: 0,
+      net_revenue: 0,
+      cash_revenue: 0,
+      qris_revenue: 0,
+      online_revenue: 0,
+      operational_expense: 0,
+      total_transactions: 0,
+      total_cups: 0,
+      average_transaction: 0
+    };
+    if (dailyData) {
+      dailyData.forEach(d => {
+         kpi.gross_revenue += Number(d.gross_revenue) || 0;
+         kpi.net_revenue += Number(d.net_revenue) || 0;
+         kpi.cash_revenue += Number(d.cash_revenue) || 0;
+         kpi.qris_revenue += Number(d.qris_revenue) || 0;
+         kpi.online_revenue += Number(d.online_revenue) || 0;
+         kpi.operational_expense += Number(d.total_expense) || 0;
+         kpi.total_transactions += Number(d.total_transactions) || 0;
+         kpi.total_cups += Number(d.total_cups) || 0;
+      });
+    }
 
     // 3. Shift Audit Master
     const { data: shiftsData, error: shiftsErr } = await supabase
       .from("vw_shift_detail")
       .select("*")
-      .gte("opened_at", `${startDate}T00:00:00Z`)
-      .lte("opened_at", `${endDate}T23:59:59Z`)
-      .order("opened_at", { ascending: false });
+      .lte("start_time", `${endDate}T23:59:59+07:00`)
+      .or(`end_time.gte.${startDate}T00:00:00+07:00,end_time.is.null`)
+      .order("start_time", { ascending: false });
     if (shiftsErr) console.error("Shifts View Error:", shiftsErr);
 
-    // 4. Exceptions
-    const { data: exceptionsData, error: exceptionsErr } = await supabase
-      .from("vw_audit_exception")
-      .select("*")
-      .gte("opened_at", `${startDate}T00:00:00Z`)
-      .lte("opened_at", `${endDate}T23:59:59Z`);
-    if (exceptionsErr) console.error("Exceptions Error:", exceptionsErr);
+    // 4. Exceptions (Derived from Shift Cash Difference)
+    const exceptionsData = (shiftsData || [])
+      .filter((s: any) => {
+        const isKasirPusat = !s.crew_name || s.crew_name.toLowerCase() === 'system' || s.crew_name.toLowerCase().includes('kasir pusat');
+        return isKasirPusat && s.end_time && Number(s.cash_difference) !== 0;
+      })
+      .map((s: any) => ({
+        shift_id: s.shift_id,
+        crew_name: s.crew_name,
+        end_time: s.end_time,
+        exception_type: Number(s.cash_difference) < 0 ? 'SHORTAGE' : 'OVERAGE',
+        amount: Math.abs(Number(s.cash_difference)),
+        description: Number(s.cash_difference) < 0 ? 'Kekurangan Setoran Fisik' : 'Kelebihan Setoran Fisik'
+      }));
 
     // 5. Financial Timeline
     const { data: timelineData, error: timelineErr } = await supabase
       .from("vw_company_financial_timeline")
       .select("*")
-      .gte("event_time", `${startDate}T00:00:00Z`)
-      .lte("event_time", `${endDate}T23:59:59Z`)
+      .gte("event_time", `${startDate}T00:00:00+07:00`)
+      .lte("event_time", `${endDate}T23:59:59+07:00`)
       .order("event_time", { ascending: false });
+    if (timelineErr) console.error("Timeline Error:", timelineErr);
     
     // 6. Best Selling
     const { data: bestSellingData } = await supabase.from("vw_best_selling_products").select("*").limit(5);
@@ -102,7 +131,6 @@ export async function getMasterAuditPayload(periodStr: string): Promise<ActionRe
 
     // Executive Insights
     const insights = [];
-    const kpi = kpiData?.[0] || {};
     if (kpi.gross_revenue > 0) insights.push(`Total Revenue mencapai Rp ${Number(kpi.gross_revenue).toLocaleString('id-ID')} secara Realtime.`);
     if (exceptionsData && exceptionsData.length > 0) insights.push(`Terdapat ${exceptionsData.length} anomali kas (Selisih) yang perlu diperiksa.`);
     else insights.push("Tidak ada anomali terdeteksi pada periode ini. Audit bersih.");
@@ -112,17 +140,7 @@ export async function getMasterAuditPayload(periodStr: string): Promise<ActionRe
       period: periodStr,
       startDate,
       endDate,
-      kpi: kpiData?.[0] || {
-        gross_revenue: 0,
-        net_revenue: 0,
-        cash_revenue: 0,
-        qris_revenue: 0,
-        online_revenue: 0,
-        operational_expense: 0,
-        total_transactions: 0,
-        total_cups: 0,
-        average_transaction: 0
-      },
+      kpi,
       dailyClosing: dailyData || [],
       shiftMaster: shiftsData || [],
       exceptions: exceptionsData || [],

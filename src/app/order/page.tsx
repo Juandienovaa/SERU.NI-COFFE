@@ -45,7 +45,10 @@ export default function CustomerOrderPage() {
           getAvailableStockForShift()
         ]);
         
-        if (prodRes.success) setProducts(prodRes.data || []);
+        if (prodRes.success) {
+          const validProducts = (prodRes.data || []).filter(p => !p.is_offline_only);
+          setProducts(validProducts);
+        }
         
         const map: Record<number, number> = {};
         stockRes.forEach((s: any) => {
@@ -62,8 +65,9 @@ export default function CustomerOrderPage() {
   }, []);
 
   const handleAddToCart = (product: ProductCatalogItem) => {
-    const stock = stockMap[product.product_id] || 0;
-    if (stock <= 0) return; // Sold out
+    const isTracked = product.is_stock_tracked !== false;
+    const stock = isTracked ? (stockMap[product.product_id] || 0) : Infinity;
+    if (isTracked && stock <= 0) return; // Sold out
 
     setCart(prev => {
       const existing = prev.find(item => item.product.product_id === product.product_id);
@@ -210,7 +214,8 @@ export default function CustomerOrderPage() {
               const stock = stockMap[p.product_id] || 0;
               const cartItem = cart.find(c => c.product.product_id === p.product_id);
               const qty = cartItem ? cartItem.qty : 0;
-              const isSoldOut = stock <= 0;
+              const isTracked = p.is_stock_tracked !== false;
+              const isSoldOut = isTracked && stock <= 0;
 
               return (
                 <div key={p.product_id} className={`p-4 rounded-3xl border transition-all duration-300 flex items-center gap-4 ${isSoldOut ? 'bg-neutral-900/50 border-white/5 opacity-60 grayscale' : qty > 0 ? 'bg-orange-500/5 border-orange-500/20' : 'bg-[#111111] border-white/5 hover:border-white/10'}`}>
@@ -235,7 +240,7 @@ export default function CustomerOrderPage() {
                             <Minus className="w-4 h-4" />
                           </button>
                           <span className="font-black font-mono w-4 text-center">{qty}</span>
-                          <button onClick={() => handleAddToCart(p)} disabled={qty >= stock} className={`w-8 h-8 rounded-full flex items-center justify-center active:scale-95 ${qty >= stock ? 'bg-neutral-800 text-neutral-600' : 'bg-orange-500 text-white'}`}>
+                          <button onClick={() => handleAddToCart(p)} disabled={isTracked && qty >= stock} className={`w-8 h-8 rounded-full flex items-center justify-center active:scale-95 ${isTracked && qty >= stock ? 'bg-neutral-800 text-neutral-600' : 'bg-orange-500 text-white'}`}>
                             <Plus className="w-4 h-4" />
                           </button>
                         </div>

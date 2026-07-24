@@ -20,7 +20,9 @@ export class ProductRepository {
       status: "ACTIVE",
       image: p.image,
       price: p.price,
-      tags: p.tags
+      tags: p.tags,
+      is_stock_tracked: p.is_stock_tracked ?? true,
+      is_offline_only: p.is_offline_only ?? false
     }));
   }
 
