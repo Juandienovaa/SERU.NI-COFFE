@@ -9,25 +9,29 @@ export function generateEnterpriseExcel(payload: any) {
     "Mulai": payload.startIso,
     "Selesai": payload.endIso,
     "Financial Health": `${payload.financialHealth.score}/100 (${payload.financialHealth.status})`,
-    "Gross Revenue": payload.kpi.gross_revenue,
-    "Net Revenue": payload.kpi.net_revenue,
-    "Cash Revenue": payload.kpi.cash_revenue,
-    "QRIS Revenue": payload.kpi.qris_revenue,
-    "Total Expense": payload.kpi.total_expense,
-    "Total Transactions": payload.kpi.total_transactions,
-    "Total Cups": payload.kpi.total_cups
+    "Gross Revenue": payload.kpi.gross_revenue || 0,
+    "Net Revenue": payload.kpi.net_revenue || 0,
+    "Cash Revenue": payload.kpi.cash_revenue || 0,
+    "QRIS Revenue": payload.kpi.qris_revenue || 0,
+    "Online Revenue": payload.kpi.online_revenue || 0,
+    "Total Expense": payload.kpi.operational_expense || 0,
+    "Total Transactions": payload.kpi.total_transactions || 0,
+    "Total Cups": payload.kpi.total_cups || 0
   }]);
   XLSX.utils.book_append_sheet(wb, wsExec, "Executive Summary");
 
   // 2. Daily Closing
   if (payload.dailyClosing && payload.dailyClosing.length > 0) {
     const wsDaily = XLSX.utils.json_to_sheet(payload.dailyClosing.map((d: any) => ({
-      "Tanggal": d.closing_date,
-      "Total Shift": d.total_shifts,
+      "Tanggal": d.date,
+      "Gross Revenue": d.gross_revenue,
       "Cash Revenue": d.cash_revenue,
       "QRIS Revenue": d.qris_revenue,
-      "Total Expense": d.total_expense,
-      "Gross Revenue": d.gross_revenue
+      "Online Revenue": d.online_revenue,
+      "Total Expense": d.operational_expense,
+      "Net Revenue": d.net_revenue,
+      "Total Transaksi": d.total_transactions,
+      "Total Cup": d.total_cups
     })));
     XLSX.utils.book_append_sheet(wb, wsDaily, "Daily Closing");
   }
@@ -36,36 +40,38 @@ export function generateEnterpriseExcel(payload: any) {
   if (payload.shiftMaster && payload.shiftMaster.length > 0) {
     const wsShift = XLSX.utils.json_to_sheet(payload.shiftMaster.map((s: any) => ({
       "Shift ID": s.shift_id,
-      "Outlet": s.outlet_id,
-      "Kasir": s.cashier_name,
-      "Tipe": s.shift_type,
+      "Outlet": s.outlet_name,
+      "Kasir": s.crew_name,
+      "Status": s.shift_status,
       "Buka": s.opened_at,
       "Tutup": s.closed_at,
-      "Status": s.status,
       "Modal Awal": s.modal_awal,
-      "Cash Sales": s.cash_sales,
-      "QRIS Sales": s.qris_sales,
-      "Gross Sales": s.gross_sales,
-      "OpEx": s.operational_expense,
+      "Total Transaksi": s.total_transaksi,
+      "Total Cup": s.cup_terjual,
+      "Omset Tunai": s.omset_tunai,
+      "Omset QRIS": s.omset_qris,
+      "Gross Revenue": s.gross_revenue,
+      "OpEx": s.pengeluaran_operasional,
+      "Net Revenue": s.net_revenue,
       "Kas Seharusnya": s.expected_cash,
-      "Kas Fisik": s.physical_cash,
-      "Selisih": s.cash_difference,
-      "Total Cup": s.total_cup,
+      "Kas Fisik": s.actual_cash,
+      "Selisih Kas": s.selisih_kas,
       "Audit Score": s.audit_score
     })));
     XLSX.utils.book_append_sheet(wb, wsShift, "Shift Summary");
   }
 
-  // 4. Exceptions
-  if (payload.exceptions && payload.exceptions.length > 0) {
-    const wsExceptions = XLSX.utils.json_to_sheet(payload.exceptions.map((e: any) => ({
-      "Shift ID": e.shift_id,
-      "Tipe": e.exception_type,
-      "Tingkat": e.severity,
-      "Deskripsi": e.description,
-      "Waktu": e.event_time
+  // 4. Timeline
+  if (payload.timeline && payload.timeline.length > 0) {
+    const wsTimeline = XLSX.utils.json_to_sheet(payload.timeline.map((t: any) => ({
+      "Event ID": t.event_id,
+      "Shift ID": t.shift_id,
+      "Waktu": t.event_time,
+      "Tipe Event": t.event_type,
+      "Deskripsi": t.description,
+      "Nominal": t.amount
     })));
-    XLSX.utils.book_append_sheet(wb, wsExceptions, "Exceptions");
+    XLSX.utils.book_append_sheet(wb, wsTimeline, "Financial Timeline");
   }
 
   // Generate and download

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { FinancialToolbar, PeriodType } from "./FinancialToolbar";
-import { BarChart3, Loader2, Store, Search, Filter, AlertTriangle, CheckCircle2, FileText, Download } from "lucide-react";
+import { BarChart3, Loader2, Store, Search, Filter, AlertTriangle, CheckCircle2, FileText, Download, TrendingUp, Clock, Activity, Flame } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { supabase } from "@/lib/supabase";
 import { getMasterAuditPayload } from "@/app/actions/financialAuditActions";
@@ -15,10 +15,6 @@ export const ManagerFinancialAudit = () => {
   const [period, setPeriod] = useState<PeriodType>("today");
   const [isLoading, setIsLoading] = useState(true);
   const [payload, setPayload] = useState<any>(null);
-  
-  const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"ALL" | "PENDING" | "VERIFIED" | "SETTLED">("ALL");
-
   const [isExporting, setIsExporting] = useState(false);
 
   const fetchFinancialData = async () => {
@@ -44,6 +40,8 @@ export const ManagerFinancialAudit = () => {
     const channel = supabase.channel('manager-financial-audit')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, () => fetchFinancialData())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'shifts' }, () => fetchFinancialData())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'online_orders' }, () => fetchFinancialData())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'operational_expenses' }, () => fetchFinancialData())
       .subscribe();
 
     return () => {
@@ -65,8 +63,7 @@ export const ManagerFinancialAudit = () => {
   };
 
   const handleExportPDF = async () => {
-    // Basic placeholder for PDF. Enterprise PDF generator goes here.
-    alert("Exporting Enterprise PDF...");
+    alert("Enterprise PDF Generator logic (to be integrated)...");
   };
 
   if (isLoading && !payload) {
@@ -130,10 +127,14 @@ export const ManagerFinancialAudit = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-        <div className="bg-[#111111] border border-white/5 p-6 rounded-2xl">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
+        <div className="bg-[#111111] border border-white/5 p-6 rounded-2xl col-span-1 sm:col-span-2 lg:col-span-2">
           <p className="text-xs text-neutral-500 uppercase tracking-widest mb-1">Gross Revenue</p>
-          <p className="text-2xl font-bold text-white">{formatRupiah(kpi.gross_revenue || 0)}</p>
+          <p className="text-3xl font-bold text-white mb-2">{formatRupiah(kpi.gross_revenue || 0)}</p>
+          <div className="flex gap-4">
+             <div className="text-xs text-zinc-400">Offline POS: <span className="text-zinc-200">{formatRupiah((kpi.cash_revenue || 0) + (kpi.qris_revenue || 0))}</span></div>
+             <div className="text-xs text-zinc-400">Online Order: <span className="text-sky-400">{formatRupiah(kpi.online_revenue || 0)}</span></div>
+          </div>
         </div>
         <div className="bg-[#111111] border border-white/5 p-6 rounded-2xl">
           <p className="text-xs text-neutral-500 uppercase tracking-widest mb-1">Net Revenue</p>
@@ -141,11 +142,11 @@ export const ManagerFinancialAudit = () => {
         </div>
         <div className="bg-[#111111] border border-white/5 p-6 rounded-2xl">
           <p className="text-xs text-neutral-500 uppercase tracking-widest mb-1">Total Expense</p>
-          <p className="text-2xl font-bold text-red-400">{formatRupiah(kpi.total_expense || 0)}</p>
+          <p className="text-2xl font-bold text-red-400">{formatRupiah(kpi.operational_expense || 0)}</p>
         </div>
         <div className="bg-[#111111] border border-white/5 p-6 rounded-2xl">
-          <p className="text-xs text-neutral-500 uppercase tracking-widest mb-1">Total Transaksi / Cup</p>
-          <p className="text-2xl font-bold text-blue-400">{kpi.total_transactions || 0} <span className="text-lg text-neutral-500">/ {kpi.total_cups || 0}</span></p>
+          <p className="text-xs text-neutral-500 uppercase tracking-widest mb-1">Cup Terjual</p>
+          <p className="text-2xl font-bold text-blue-400">{kpi.total_cups || 0} <span className="text-sm font-normal text-zinc-500 block">dari {kpi.total_transactions || 0} Transaksi</span></p>
         </div>
       </div>
 
@@ -158,12 +159,14 @@ export const ManagerFinancialAudit = () => {
           <div className="space-y-3">
             {payload.exceptions.map((ex: any, idx: number) => (
               <div key={idx} className="flex items-start gap-4 p-3 bg-black/40 rounded-xl border border-red-500/10">
-                <span className={`px-2 py-1 text-[10px] font-bold uppercase rounded ${ex.severity === 'CRITICAL' ? 'bg-red-500/20 text-red-400' : 'bg-yellow-500/20 text-yellow-400'}`}>
-                  {ex.severity}
+                <span className={`px-2 py-1 text-[10px] font-bold uppercase rounded ${ex.exception_type === 'SHORTAGE' ? 'bg-red-500/20 text-red-400' : 'bg-yellow-500/20 text-yellow-400'}`}>
+                  {ex.exception_type}
                 </span>
                 <div>
-                  <p className="text-sm font-medium text-white">{ex.description}</p>
-                  <p className="text-xs text-neutral-500 mt-1">Tipe: {ex.exception_type} | Waktu: {new Date(ex.event_time).toLocaleString('id-ID')}</p>
+                  <p className="text-sm font-medium text-white">
+                    {ex.exception_type === 'SHORTAGE' ? 'Kekurangan Kas' : 'Kelebihan Kas'} sebesar {formatRupiah(Math.abs(ex.selisih_kas))}
+                  </p>
+                  <p className="text-xs text-neutral-500 mt-1">Crew: {ex.crew_name} | Shift ditutup pada: {new Date(ex.closed_at).toLocaleString('id-ID')}</p>
                 </div>
               </div>
             ))}
@@ -173,9 +176,11 @@ export const ManagerFinancialAudit = () => {
 
       {/* SHIFT SUMMARY TABLE */}
       <section className="space-y-6">
-        <div className="flex items-center gap-3 mb-6">
-          <Store className="w-6 h-6 text-orange-500" />
-          <h2 className="text-2xl font-black text-white uppercase tracking-widest">Shift Audit History</h2>
+        <div className="flex items-center justify-between mb-6">
+           <div className="flex items-center gap-3">
+             <Store className="w-6 h-6 text-orange-500" />
+             <h2 className="text-2xl font-black text-white uppercase tracking-widest">Shift Audit History</h2>
+           </div>
         </div>
 
         <div className="bg-[#111111] border border-white/5 rounded-2xl overflow-hidden">
@@ -188,7 +193,6 @@ export const ManagerFinancialAudit = () => {
                   <th className="p-4 text-xs font-semibold text-neutral-400 uppercase tracking-wider">Expense</th>
                   <th className="p-4 text-xs font-semibold text-neutral-400 uppercase tracking-wider">Selisih Kas</th>
                   <th className="p-4 text-xs font-semibold text-neutral-400 uppercase tracking-wider">Score</th>
-                  <th className="p-4 text-xs font-semibold text-neutral-400 uppercase tracking-wider text-right">Aksi</th>
                 </tr>
               </thead>
               <tbody>
@@ -196,33 +200,33 @@ export const ManagerFinancialAudit = () => {
                   <tr key={shift.shift_id} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
                     <td className="p-4">
                       <div className="flex items-center gap-2 mb-1">
-                        <p className="text-sm font-bold text-white">{shift.cashier_name}</p>
-                        <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${shift.status === 'OPEN' ? 'bg-orange-500/20 text-orange-400' : 'bg-emerald-500/20 text-emerald-400'}`}>
-                          {shift.status}
+                        <p className="text-sm font-bold text-white">{shift.crew_name || 'System'}</p>
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${shift.shift_status === 'OPEN' ? 'bg-orange-500/20 text-orange-400' : 'bg-emerald-500/20 text-emerald-400'}`}>
+                          {shift.shift_status}
                         </span>
                       </div>
                       <p className="text-xs text-neutral-500">
-                        {shift.status === 'OPEN' ? '🟢 Sedang Berjalan' : new Date(shift.closed_at).toLocaleString('id-ID')}
+                        {shift.shift_status === 'OPEN' ? '🟢 Sedang Berjalan' : new Date(shift.closed_at).toLocaleString('id-ID')}
                       </p>
                     </td>
                     <td className="p-4">
-                      <p className="text-sm font-medium text-white">{formatRupiah(shift.gross_sales)}</p>
-                      <p className="text-xs text-neutral-500 mt-1">{shift.total_cup} Cup</p>
+                      <p className="text-sm font-medium text-white">{formatRupiah(shift.gross_revenue)}</p>
+                      <p className="text-xs text-neutral-500 mt-1">{shift.cup_terjual} Cup</p>
                     </td>
                     <td className="p-4">
-                      <p className="text-sm font-medium text-red-400">{formatRupiah(shift.operational_expense)}</p>
+                      <p className="text-sm font-medium text-red-400">{formatRupiah(shift.pengeluaran_operasional)}</p>
                     </td>
                     <td className="p-4">
-                      {shift.status === 'OPEN' ? (
+                      {shift.shift_status === 'OPEN' ? (
                          <p className="text-xs text-neutral-500 italic">Menunggu Tutup Shift</p>
                       ) : (
-                        <p className={`text-sm font-bold ${shift.cash_difference < 0 ? 'text-red-400' : shift.cash_difference > 0 ? 'text-yellow-400' : 'text-emerald-400'}`}>
-                          {formatRupiah(shift.cash_difference)}
+                        <p className={`text-sm font-bold ${shift.selisih_kas < 0 ? 'text-red-400' : shift.selisih_kas > 0 ? 'text-yellow-400' : 'text-emerald-400'}`}>
+                          {formatRupiah(shift.selisih_kas)}
                         </p>
                       )}
                     </td>
                     <td className="p-4">
-                      {shift.status === 'OPEN' ? (
+                      {shift.shift_status === 'OPEN' ? (
                         <span className="px-2 py-1 text-xs font-bold rounded bg-neutral-800 text-neutral-500">
                           -
                         </span>
@@ -232,16 +236,11 @@ export const ManagerFinancialAudit = () => {
                         </span>
                       )}
                     </td>
-                    <td className="p-4 text-right">
-                      <button className="px-3 py-1.5 bg-white/5 hover:bg-white/10 text-white text-xs font-medium rounded transition-colors">
-                        Lihat Detail
-                      </button>
-                    </td>
                   </tr>
                 ))}
                 {(!payload?.shiftMaster || payload.shiftMaster.length === 0) && (
                   <tr>
-                    <td colSpan={6} className="p-12 text-center text-neutral-500">
+                    <td colSpan={5} className="p-12 text-center text-neutral-500">
                       Tidak ada data shift yang ditutup pada periode ini.
                     </td>
                   </tr>
@@ -252,6 +251,62 @@ export const ManagerFinancialAudit = () => {
         </div>
       </section>
 
+      {/* ADDITIONAL KPI & TIMELINE */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-8">
+        
+        <div className="lg:col-span-1 space-y-6">
+           <div className="bg-[#111111] border border-white/5 rounded-2xl p-6">
+             <h3 className="text-sm font-semibold text-white mb-5 flex items-center gap-2">
+                <Flame className="w-4 h-4 text-orange-500" /> Best Selling Products
+             </h3>
+             <div className="space-y-4">
+                {payload?.bestSelling?.length > 0 ? (
+                  payload.bestSelling.map((item: any, idx: number) => (
+                    <div key={item.product_id} className="flex items-center gap-3">
+                      <div className="w-6 h-6 rounded-md bg-white/5 text-zinc-500 text-[10px] font-bold flex items-center justify-center shrink-0">#{idx + 1}</div>
+                      <p className="text-xs font-semibold text-white flex-1 truncate">{item.product_name}</p>
+                      <p className="text-xs font-bold text-emerald-400 font-mono">{item.total_sold} cup</p>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-xs text-neutral-500">Belum ada penjualan tercatat.</p>
+                )}
+             </div>
+           </div>
+        </div>
+
+        <div className="lg:col-span-2">
+           <div className="bg-[#111111] border border-white/5 rounded-2xl p-6 h-full">
+             <h3 className="text-sm font-semibold text-white mb-5 flex items-center gap-2">
+                <Activity className="w-4 h-4 text-blue-400" /> Enterprise Financial Timeline
+             </h3>
+             <div className="space-y-4 h-64 overflow-y-auto pr-2 custom-scrollbar">
+                {payload?.timeline?.length > 0 ? (
+                  payload.timeline.map((evt: any, idx: number) => (
+                    <div key={idx} className="flex items-start gap-4 bg-black/20 p-3 rounded-xl border border-white/[0.02]">
+                       <div className="w-1.5 h-1.5 mt-1.5 rounded-full shrink-0 bg-blue-500" />
+                       <div className="flex-1">
+                          <p className="text-xs font-semibold text-white">{evt.description}</p>
+                          <p className="text-[10px] text-zinc-500 mt-1">{new Date(evt.event_time).toLocaleString('id-ID')} • {evt.event_type}</p>
+                       </div>
+                       {evt.amount !== 0 && (
+                         <div className="text-right">
+                           <p className={`text-xs font-bold font-mono ${evt.amount > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                              {evt.amount > 0 ? '+' : ''}{formatRupiah(evt.amount)}
+                           </p>
+                         </div>
+                       )}
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-xs text-neutral-500">Belum ada aktivitas tercatat.</p>
+                )}
+             </div>
+           </div>
+        </div>
+      </div>
+
     </div>
   );
 };
+

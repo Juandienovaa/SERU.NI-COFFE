@@ -18,56 +18,79 @@ export async function getMasterAuditPayload(periodStr: string): Promise<ActionRe
       day: parseInt(wibParts.find(p => p.type === 'day')!.value)
     };
 
+    let startDate: string = "";
+    let endDate: string = "";
+
     if (periodStr === "today") {
-      const start = new Date(Date.UTC(wibDate.year, wibDate.month, wibDate.day, -7, 0, 0));
-      const end = new Date(Date.UTC(wibDate.year, wibDate.month, wibDate.day, 16, 59, 59, 999));
-      startIso = start.toISOString();
-      endIso = end.toISOString();
+      const d = new Date(Date.UTC(wibDate.year, wibDate.month, wibDate.day));
+      startDate = d.toISOString().split('T')[0];
+      endDate = d.toISOString().split('T')[0];
     } else if (periodStr === "week") {
-      const start = new Date(Date.UTC(wibDate.year, wibDate.month, wibDate.day - 7, -7, 0, 0));
-      const end = new Date(Date.UTC(wibDate.year, wibDate.month, wibDate.day, 16, 59, 59, 999));
-      startIso = start.toISOString();
-      endIso = end.toISOString();
+      const end = new Date(Date.UTC(wibDate.year, wibDate.month, wibDate.day));
+      const start = new Date(end);
+      start.setDate(end.getDate() - 7);
+      startDate = start.toISOString().split('T')[0];
+      endDate = end.toISOString().split('T')[0];
     } else if (periodStr === "month") {
-      const start = new Date(Date.UTC(wibDate.year, wibDate.month, 1, -7, 0, 0));
-      const end = new Date(Date.UTC(wibDate.year, wibDate.month + 1, 0, 16, 59, 59, 999));
-      startIso = start.toISOString();
-      endIso = end.toISOString();
+      startDate = `${wibDate.year}-${String(wibDate.month + 1).padStart(2, '0')}-01`;
+      const end = new Date(Date.UTC(wibDate.year, wibDate.month + 1, 0));
+      endDate = end.toISOString().split('T')[0];
+    } else if (periodStr === "year") {
+      startDate = `${wibDate.year}-01-01`;
+      endDate = `${wibDate.year}-12-31`;
     } else {
-      // Default fallback to today
-      const start = new Date(Date.UTC(wibDate.year, wibDate.month, wibDate.day, -7, 0, 0));
-      const end = new Date(Date.UTC(wibDate.year, wibDate.month, wibDate.day, 16, 59, 59, 999));
-      startIso = start.toISOString();
-      endIso = end.toISOString();
+      const d = new Date(Date.UTC(wibDate.year, wibDate.month, wibDate.day));
+      startDate = d.toISOString().split('T')[0];
+      endDate = d.toISOString().split('T')[0];
     }
 
-    // 1. Executive KPIs (RPC) - TRUE ERP
-    const { data: kpiData, error: kpiErr } = await supabase.rpc("rpc_get_true_executive_kpis", { p_start_date: startIso, p_end_date: endIso, p_include_open_shifts: true });
+    // 1. Executive KPIs
+    const { data: kpiData, error: kpiErr } = await supabase.rpc("rpc_get_financial_dashboard", { start_date: startDate, end_date: endDate });
     if (kpiErr) console.error("KPI Error:", kpiErr);
 
-    // 2. Daily Closing Summary (RPC) - TRUE ERP
-    const { data: dailyData, error: dailyErr } = await supabase.rpc("rpc_get_true_daily_closing", { p_start_date: startIso, p_end_date: endIso });
+    // 2. Daily Closing Summary
+    const { data: dailyData, error: dailyErr } = await supabase
+      .from("vw_daily_summary")
+      .select("*")
+      .gte("summary_date", startDate)
+      .lte("summary_date", endDate)
+      .order("summary_date", { ascending: false });
     if (dailyErr) console.error("Daily Error:", dailyErr);
 
-    // 3. Shift Audit Master (View) - TRUE ERP
+    // 3. Shift Audit Master
     const { data: shiftsData, error: shiftsErr } = await supabase
-      .from("vw_true_shift_audit_master")
+      .from("vw_shift_detail")
       .select("*")
-      .gte("opened_at", startIso)
-      .lte("opened_at", endIso)
+      .gte("opened_at", `${startDate}T00:00:00Z`)
+      .lte("opened_at", `${endDate}T23:59:59Z`)
       .order("opened_at", { ascending: false });
     if (shiftsErr) console.error("Shifts View Error:", shiftsErr);
 
-    // 4. Exceptions (RPC) - TRUE ERP
-    const { data: exceptionsData, error: exceptionsErr } = await supabase.rpc("rpc_get_true_audit_exceptions", { p_start_date: startIso, p_end_date: endIso });
+    // 4. Exceptions
+    const { data: exceptionsData, error: exceptionsErr } = await supabase
+      .from("vw_audit_exception")
+      .select("*")
+      .gte("opened_at", `${startDate}T00:00:00Z`)
+      .lte("opened_at", `${endDate}T23:59:59Z`);
     if (exceptionsErr) console.error("Exceptions Error:", exceptionsErr);
 
-    // Generate Financial Health (Simple placeholder rule based on exceptions and shift score for now)
+    // 5. Financial Timeline
+    const { data: timelineData, error: timelineErr } = await supabase
+      .from("vw_company_financial_timeline")
+      .select("*")
+      .gte("event_time", `${startDate}T00:00:00Z`)
+      .lte("event_time", `${endDate}T23:59:59Z`)
+      .order("event_time", { ascending: false });
+    
+    // 6. Best Selling
+    const { data: bestSellingData } = await supabase.from("vw_best_selling_products").select("*").limit(5);
+
+    // Generate Financial Health
     let totalScore = 100;
     if (exceptionsData && exceptionsData.length > 0) {
       exceptionsData.forEach((ex: any) => {
-        if (ex.severity === 'CRITICAL') totalScore -= 10;
-        else if (ex.severity === 'HIGH') totalScore -= 5;
+        if (ex.exception_type === 'SHORTAGE') totalScore -= 10;
+        else if (ex.exception_type === 'OVERAGE') totalScore -= 5;
         else totalScore -= 2;
       });
     }
@@ -77,30 +100,34 @@ export async function getMasterAuditPayload(periodStr: string): Promise<ActionRe
     else if (healthScore < 80) healthStatus = "Warning";
     else if (healthScore < 95) healthStatus = "Good";
 
-    // Executive Insights (Auto generated array)
+    // Executive Insights
     const insights = [];
     const kpi = kpiData?.[0] || {};
-    if (kpi.gross_revenue > 0) insights.push(`Total Revenue mencapai Rp ${kpi.gross_revenue.toLocaleString('id-ID')} secara Realtime.`);
-    if (exceptionsData && exceptionsData.length > 0) insights.push(`Terdapat ${exceptionsData.length} anomali yang perlu diperiksa.`);
-    else insights.push("Tidak ada anomali terdeteksi pada periode ini.");
-    if (dailyData && dailyData.length > 0) insights.push(`Rata-rata penjualan harian tercatat dari ${dailyData.length} hari operasional.`);
+    if (kpi.gross_revenue > 0) insights.push(`Total Revenue mencapai Rp ${Number(kpi.gross_revenue).toLocaleString('id-ID')} secara Realtime.`);
+    if (exceptionsData && exceptionsData.length > 0) insights.push(`Terdapat ${exceptionsData.length} anomali kas (Selisih) yang perlu diperiksa.`);
+    else insights.push("Tidak ada anomali terdeteksi pada periode ini. Audit bersih.");
+    if (dailyData && dailyData.length > 0) insights.push(`Tercatat ${dailyData.length} hari operasional dalam rentang waktu terpilih.`);
 
     const payload = {
       period: periodStr,
-      startIso,
-      endIso,
+      startDate,
+      endDate,
       kpi: kpiData?.[0] || {
         gross_revenue: 0,
         net_revenue: 0,
         cash_revenue: 0,
         qris_revenue: 0,
-        total_expense: 0,
+        online_revenue: 0,
+        operational_expense: 0,
         total_transactions: 0,
-        total_cups: 0
+        total_cups: 0,
+        average_transaction: 0
       },
       dailyClosing: dailyData || [],
       shiftMaster: shiftsData || [],
       exceptions: exceptionsData || [],
+      timeline: timelineData || [],
+      bestSelling: bestSellingData || [],
       insights,
       financialHealth: {
         score: healthScore,
