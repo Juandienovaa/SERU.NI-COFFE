@@ -17,6 +17,8 @@ export interface ReportDataPayload {
     averageCupsPerTrx: number;
     totalActiveOutlets: number;
     totalActiveCrew: number;
+    totalExpenses: number;
+    netRevenue: number;
   };
   insights: {
     revenueGrowth: number;
@@ -40,6 +42,7 @@ export interface ReportDataPayload {
   ledger: any[];
   settlement: any[];
   posCenterDaily: any[];
+  expensesDaily: any[];
   posCenterTotal: {
     totalRevenue: number;
     totalOrders: number;
@@ -62,7 +65,7 @@ export interface ReportDataPayload {
 }
 
 export const reportDataService = {
-  async fetchReportData(period: string, generatedBy: string): Promise<ReportDataPayload> {
+  async fetchReportData(period: string, generatedBy: string, customStartDate?: string, customEndDate?: string): Promise<ReportDataPayload> {
     const now = new Date();
     let startIso = "";
     let endIso = "";
@@ -73,7 +76,10 @@ export const reportDataService = {
       day: now.getDate()
     };
 
-    if (period === "today") {
+    if (customStartDate && customEndDate) {
+      startIso = new Date(`${customStartDate}T00:00:00+07:00`).toISOString();
+      endIso = new Date(`${customEndDate}T23:59:59+07:00`).toISOString();
+    } else if (period === "today") {
       const start = new Date(Date.UTC(wibDate.year, wibDate.month, wibDate.day, -7, 0, 0));
       const end = new Date(Date.UTC(wibDate.year, wibDate.month, wibDate.day, 16, 59, 59, 999));
       startIso = start.toISOString();
@@ -107,16 +113,23 @@ export const reportDataService = {
     `).in('payment_status', ['PAID', 'SETTLED']);
 
     let trxItemsQuery = supabase.from('transaction_items').select(`
-      id, transaction_id, product_id, qty, price, subtotal, products(product_name)
+      id, transaction_id, product_id, qty, price, subtotal, products(product_name),
+      transactions!inner(created_at)
     `);
 
     let onlineItemsQuery = supabase.from('online_order_items').select(`
-      id, order_id, product_id, product_name, quantity, price, subtotal
+      id, order_id, product_id, product_name, quantity, price, subtotal,
+      online_orders!inner(created_at)
     `);
+
+    let expenseQuery = supabase.from('operational_expenses').select('*');
 
     if (startIso && endIso) {
       trxQuery = trxQuery.gte('created_at', startIso).lte('created_at', endIso);
       onlineQuery = onlineQuery.gte('created_at', startIso).lte('created_at', endIso);
+      expenseQuery = expenseQuery.gte('created_at', startIso).lte('created_at', endIso);
+      trxItemsQuery = trxItemsQuery.gte('transactions.created_at', startIso).lte('transactions.created_at', endIso);
+      onlineItemsQuery = onlineItemsQuery.gte('online_orders.created_at', startIso).lte('online_orders.created_at', endIso);
     }
 
     const [
@@ -125,14 +138,16 @@ export const reportDataService = {
       { data: trxItems },
       { data: onlineItems },
       { data: users },
-      { data: shifts }
+      { data: shifts },
+      { data: expenses }
     ] = await Promise.all([
       trxQuery,
       onlineQuery,
       trxItemsQuery,
       onlineItemsQuery,
       supabase.from('users').select('id, nama'),
-      supabase.from('shifts').select('*')
+      supabase.from('shifts').select('*'),
+      expenseQuery
     ]);
 
     const userMap = (users || []).reduce((acc: any, u: any) => ({ ...acc, [u.id]: u.nama }), {});
@@ -145,6 +160,30 @@ export const reportDataService = {
     let totalOrders = (trxs?.length || 0) + (onlineOrders?.length || 0);
     let totalCups = 0;
     
+    let totalExpenses = 0;
+    const expenseDailyMap: Record<string, { date: string, items: any[], total: number }> = {};
+    
+    (expenses || []).forEach(exp => {
+      const amount = exp.amount || 0;
+      totalExpenses += amount;
+      
+      const d = new Date(exp.created_at);
+      const pDay = d.toLocaleDateString("id-ID");
+      
+      if (!expenseDailyMap[pDay]) {
+        expenseDailyMap[pDay] = { date: pDay, items: [], total: 0 };
+      }
+      
+      expenseDailyMap[pDay].items.push({
+        description: exp.description || 'Pengeluaran',
+        amount: amount,
+        category: exp.expense_category || 'Lainnya'
+      });
+      expenseDailyMap[pDay].total += amount;
+    });
+    
+    const expensesDaily = Object.values(expenseDailyMap).sort((a,b) => b.date.localeCompare(a.date));
+
     const outletMap: Record<string, any> = {};
     const crewMap: Record<string, any> = {};
     const productMap: Record<string, any> = {};
@@ -254,9 +293,15 @@ export const reportDataService = {
       });
     });
 
+    // Pre-calculate Map using reduce for O(1) lookups (Fix N+1/O(N^2) Performance Bottleneck)
+    const trxMapById = (trxs || []).reduce((acc: any, trx: any) => {
+      acc[trx.id] = trx;
+      return acc;
+    }, {});
+
     // Process Items (Offline)
     (trxItems || []).forEach(item => {
-      const trx = trxs?.find(t => t.id === item.transaction_id);
+      const trx = trxMapById[item.transaction_id];
       if (!trx) return;
       const shift = shiftMap[trx.shift_id];
       const crewName = userMap[shift?.user_id] || "Unknown";
@@ -326,7 +371,9 @@ export const reportDataService = {
         averageOrderValue: totalOrders > 0 ? totalRevenue / totalOrders : 0,
         averageCupsPerTrx: totalOrders > 0 ? totalCups / totalOrders : 0,
         totalActiveOutlets: outletArray.length,
-        totalActiveCrew: crewArray.length
+        totalActiveCrew: crewArray.length,
+        totalExpenses: totalExpenses,
+        netRevenue: totalRevenue - totalExpenses
       },
       insights: {
         revenueGrowth: 0, // Placeholder
@@ -363,6 +410,7 @@ export const reportDataService = {
         status: "VERIFIED"
       })),
       posCenterDaily: Object.values(posCenterDailyMap).reverse(),
+      expensesDaily: expensesDaily,
       posCenterTotal,
       crewTotal,
       onlineTotal

@@ -78,6 +78,7 @@ export default function AdminDashboard() {
         const { data: shifts, error } = await supabase
           .from('shifts')
           .select('*')
+          .neq('outlet_id', 'CENTRAL_CASHIER')
           .or(`status.eq.OPEN,and(status.eq.CLOSED,closed_at.gte.${startWIBIso},closed_at.lte.${endWIBIso})`);
 
         if (error) throw error;

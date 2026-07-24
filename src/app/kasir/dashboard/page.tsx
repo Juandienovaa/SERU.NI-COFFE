@@ -375,7 +375,45 @@ export default function CentralCashierDashboard() {
           subtotal: (item.product.price || 0) * item.qty,
           created_at: new Date().toISOString()
         }));
-        if (txs.length > 0) await supabase.from("transaction_items").insert(txs);
+        if (txs.length > 0) {
+          await supabase.from("transaction_items").insert(txs);
+          
+          // Explicitly update qty_terjual in shift_inventory if shift is active
+          if (activeShift?.id) {
+            for (const item of cart) {
+              const { data: invRow } = await supabase
+                .from("shift_inventory")
+                .select("id, qty_terjual")
+                .eq("shift_id", activeShift.id)
+                .eq("product_id", item.product.product_id)
+                .single();
+
+              if (invRow) {
+                await supabase
+                  .from("shift_inventory")
+                  .update({ qty_terjual: Number(invRow.qty_terjual || 0) + item.qty })
+                  .eq("id", invRow.id);
+              }
+            }
+            
+            // Also update shifts.inventory_data JSON string to maintain consistency
+            const { data: shiftRow } = await supabase.from("shifts").select("inventory_data").eq("id", activeShift.id).single();
+            if (shiftRow && shiftRow.inventory_data) {
+              const updatedInvData = (shiftRow.inventory_data as any[]).map(invItem => {
+                const soldItem = cart.find(c => c.product.product_id === invItem.product_id);
+                if (soldItem) {
+                  return {
+                    ...invItem,
+                    terjual: Number(invItem.terjual || 0) + soldItem.qty,
+                    sisa: Math.max(0, Number(invItem.sisa || 0) - soldItem.qty)
+                  };
+                }
+                return invItem;
+              });
+              await supabase.from("shifts").update({ inventory_data: updatedInvData }).eq("id", activeShift.id);
+            }
+          }
+        }
       }
         
       setCart([]);
@@ -600,10 +638,10 @@ export default function CentralCashierDashboard() {
                 </div>
 
                 {/* Cart Sidebar */}
-                <div className="w-80 bg-[#111111] border border-white/5 rounded-3xl p-6 flex flex-col shrink-0 h-fit max-h-full">
-                  <h3 className="font-black text-lg mb-4 flex items-center gap-2"><ShoppingCart className="w-5 h-5 text-orange-500" /> Current Order</h3>
+                <div className="w-80 bg-[#111111] border border-white/5 rounded-3xl p-6 flex flex-col shrink-0 h-full max-h-screen">
+                  <h3 className="flex-none font-black text-lg mb-4 flex items-center gap-2"><ShoppingCart className="w-5 h-5 text-orange-500" /> Current Order</h3>
                   
-                  <div className="flex-1 overflow-y-auto space-y-4 mb-6">
+                  <div className="flex-1 overflow-y-auto min-h-[100px] space-y-4 mb-6">
                     {cart.map(item => (
                       <div key={item.product.product_id} className="flex items-center justify-between">
                         <div>
@@ -619,7 +657,7 @@ export default function CentralCashierDashboard() {
                     ))}
                   </div>
 
-                  <div className="border-t border-white/5 pt-4 space-y-4">
+                  <div className="flex-none border-t border-white/5 pt-4 space-y-4">
                     <div className="space-y-3">
                       <div>
                         <label className="text-xs font-bold text-neutral-400 mb-1 block">Uang Diterima (Rp)</label>

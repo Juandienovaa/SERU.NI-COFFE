@@ -22,7 +22,15 @@ export async function catatPenjualanProdukAction(shiftId: string, productId: num
     const { error: updateError } = await supabase.from("shifts").update({ inventory_data: updatedInventory, omset_tunai: newOmsetTunai, omset_qris: newOmsetQris, total_sales: newTotalSales }).eq("id", shiftId);
     if (updateError) throw updateError;
     const { data: txMaster, error: txMasterError } = await supabase.from("transactions").insert([{ shift_id: shiftId, outlet_id: shift.outlet_id, cashier_id: shift.user_id, payment_method: metodeBayar, cash_amount: metodeBayar === "CASH" ? totalHarga : 0, qris_amount: metodeBayar === "QRIS" ? totalHarga : 0, total_amount: totalHarga, total_items: qty_terjual, is_central_cashier: false, order_type: "OFFLINE", payment_status: "PAID" }]).select("id").single();
-    if (txMaster) { await supabase.from("transaction_items").insert([{ transaction_id: txMaster.id, product_id: productId, qty: qty_terjual, price: totalHarga / qty_terjual, subtotal: totalHarga }]); }
+    if (txMaster) { 
+      await supabase.from("transaction_items").insert([{ transaction_id: txMaster.id, product_id: productId, qty: qty_terjual, price: totalHarga / qty_terjual, subtotal: totalHarga }]); 
+    }
+    
+    // Explicitly update qty_terjual in shift_inventory for real-time monitoring UI
+    const { data: invRow } = await supabase.from("shift_inventory").select("id, qty_terjual").eq("shift_id", shiftId).eq("product_id", productId).single();
+    if (invRow) {
+      await supabase.from("shift_inventory").update({ qty_terjual: (invRow.qty_terjual || 0) + qty_terjual }).eq("id", invRow.id);
+    }
     await supabase.rpc("rpc_sell_from_shift", { p_shift_id: shiftId, p_product_id: productId, p_qty: qty_terjual });
     await logAudit(userId || null, null, shiftId, "OFFLINE_SALE", { productId, qty_terjual, totalHarga, metodeBayar });
     return { success: true, data: { inventory_data: updatedInventory, newOmsetTunai, newOmsetQris, newTotalSales } };

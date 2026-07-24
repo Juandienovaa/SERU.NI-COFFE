@@ -25,10 +25,10 @@ export async function getMasterAuditPayload(periodStr: string): Promise<ActionRe
       const d = new Date(Date.UTC(wibDate.year, wibDate.month, wibDate.day));
       startDate = d.toISOString().split('T')[0];
       endDate = d.toISOString().split('T')[0];
-    } else if (periodStr === "week") {
+    } else if (periodStr === "7days") {
       const end = new Date(Date.UTC(wibDate.year, wibDate.month, wibDate.day));
       const start = new Date(end);
-      start.setDate(end.getDate() - 7);
+      start.setDate(end.getDate() - 6);
       startDate = start.toISOString().split('T')[0];
       endDate = end.toISOString().split('T')[0];
     } else if (periodStr === "month") {
@@ -44,16 +44,26 @@ export async function getMasterAuditPayload(periodStr: string): Promise<ActionRe
       endDate = d.toISOString().split('T')[0];
     }
 
-    // 2. Daily Closing Summary
-    const { data: dailyData, error: dailyErr } = await supabase
-      .from("vw_daily_summary")
-      .select("*")
-      .gte("date", startDate)
-      .lte("date", endDate)
-      .order("date", { ascending: false });
-    if (dailyErr) console.error("Daily Error:", dailyErr);
+    // 2. Online Orders (Query langsung untuk realtime)
+    const { data: onlineOrders, error: onlineErr } = await supabase
+      .from("online_orders")
+      .select("grand_total, online_order_items(quantity)")
+      .gte("created_at", `${startDate}T00:00:00+07:00`)
+      .lte("created_at", `${endDate}T23:59:59+07:00`)
+      .in('payment_status', ['PAID', 'SETTLED']);
+    if (onlineErr) console.error("Online Error:", onlineErr);
 
-    // Calculate KPI from dailyData
+    // 3. Shift Audit Master (Menggunakan LOGIKA HARI BISNIS / BUSINESS DAY)
+    // Semua omset dihitung berdasarkan kapan shift tersebut DIBUKA (start_time).
+    const { data: shiftsData, error: shiftsErr } = await supabase
+      .from("vw_shift_detail")
+      .select("*")
+      .gte("start_time", `${startDate}T00:00:00+07:00`)
+      .lte("start_time", `${endDate}T23:59:59+07:00`)
+      .order("start_time", { ascending: false });
+    if (shiftsErr) console.error("Shifts View Error:", shiftsErr);
+
+    // Calculate KPI 
     const kpi = {
       gross_revenue: 0,
       net_revenue: 0,
@@ -65,27 +75,30 @@ export async function getMasterAuditPayload(periodStr: string): Promise<ActionRe
       total_cups: 0,
       average_transaction: 0
     };
-    if (dailyData) {
-      dailyData.forEach(d => {
-         kpi.gross_revenue += Number(d.gross_revenue) || 0;
-         kpi.net_revenue += Number(d.net_revenue) || 0;
-         kpi.cash_revenue += Number(d.cash_revenue) || 0;
-         kpi.qris_revenue += Number(d.qris_revenue) || 0;
-         kpi.online_revenue += Number(d.online_revenue) || 0;
-         kpi.operational_expense += Number(d.total_expense) || 0;
-         kpi.total_transactions += Number(d.total_transactions) || 0;
-         kpi.total_cups += Number(d.total_cups) || 0;
+
+    // Ambil online_revenue dari onlineOrders
+    if (onlineOrders) {
+      onlineOrders.forEach((o: any) => {
+         kpi.online_revenue += Number(o.grand_total) || 0;
+         kpi.total_cups += o.online_order_items?.reduce((sum: number, item: any) => sum + (Number(item.quantity) || 0), 0) || 0;
+         kpi.total_transactions += 1;
       });
     }
 
-    // 3. Shift Audit Master
-    const { data: shiftsData, error: shiftsErr } = await supabase
-      .from("vw_shift_detail")
-      .select("*")
-      .lte("start_time", `${endDate}T23:59:59+07:00`)
-      .or(`end_time.gte.${startDate}T00:00:00+07:00,end_time.is.null`)
-      .order("start_time", { ascending: false });
-    if (shiftsErr) console.error("Shifts View Error:", shiftsErr);
+    // Ambil data offline POS dari shiftsData (Termasuk shift yg masih OPEN / belum ditutup)
+    if (shiftsData) {
+      shiftsData.forEach(s => {
+         kpi.gross_revenue += Number(s.gross_revenue) || 0;
+         kpi.cash_revenue += Number(s.cash_revenue) || 0;
+         kpi.qris_revenue += Number(s.qris_revenue) || 0;
+         kpi.operational_expense += Number(s.operational_expense) || 0;
+         kpi.total_transactions += Number(s.total_transactions) || 0;
+         kpi.total_cups += Number(s.total_cups) || 0;
+      });
+    }
+
+    // Hitung Net Revenue
+    kpi.net_revenue = (kpi.gross_revenue + kpi.online_revenue) - kpi.operational_expense;
 
     // 4. Exceptions (Derived from Shift Cash Difference)
     const exceptionsData = (shiftsData || [])
@@ -131,17 +144,16 @@ export async function getMasterAuditPayload(periodStr: string): Promise<ActionRe
 
     // Executive Insights
     const insights = [];
-    if (kpi.gross_revenue > 0) insights.push(`Total Revenue mencapai Rp ${Number(kpi.gross_revenue).toLocaleString('id-ID')} secara Realtime.`);
+    if (kpi.gross_revenue > 0) insights.push(`Total Revenue mencapai Rp ${Number(kpi.gross_revenue + kpi.online_revenue).toLocaleString('id-ID')} secara Realtime.`);
     if (exceptionsData && exceptionsData.length > 0) insights.push(`Terdapat ${exceptionsData.length} anomali kas (Selisih) yang perlu diperiksa.`);
     else insights.push("Tidak ada anomali terdeteksi pada periode ini. Audit bersih.");
-    if (dailyData && dailyData.length > 0) insights.push(`Tercatat ${dailyData.length} hari operasional dalam rentang waktu terpilih.`);
 
     const payload = {
       period: periodStr,
       startDate,
       endDate,
       kpi,
-      dailyClosing: dailyData || [],
+      dailyClosing: [],
       shiftMaster: shiftsData || [],
       exceptions: exceptionsData || [],
       timeline: timelineData || [],

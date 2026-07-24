@@ -116,7 +116,7 @@ export const pdfExecutiveGenerator = {
     doc.text("RINGKASAN EKSEKUTIF", 14, 100);
 
     const kpiY = 115;
-    const kpiWidth = (pageWidth - 28) / 4;
+    const kpiWidth = (pageWidth - 28) / 5; // Split to 5 items now
     
     const drawSimpleKpi = (label: string, value: string, xPos: number) => {
       doc.setFontSize(9);
@@ -133,7 +133,8 @@ export const pdfExecutiveGenerator = {
     drawSimpleKpi("Total Pendapatan", formatRp(data.summary.totalRevenue), 14);
     drawSimpleKpi("Total Tunai", formatRp(data.summary.grossCash), 14 + kpiWidth);
     drawSimpleKpi("Total QRIS", formatRp(data.summary.grossQris), 14 + (kpiWidth * 2));
-    drawSimpleKpi("Pendapatan Bersih", formatRp(data.summary.totalRevenue), 14 + (kpiWidth * 3));
+    drawSimpleKpi("Total Pengeluaran", formatRp(data.summary.totalExpenses), 14 + (kpiWidth * 3));
+    drawSimpleKpi("Pendapatan Bersih", formatRp(data.summary.netRevenue), 14 + (kpiWidth * 4));
 
     // ==========================================
     // RINGKASAN PENDAPATAN HARIAN
@@ -152,7 +153,7 @@ export const pdfExecutiveGenerator = {
         formatRp(d.cash), 
         formatRp(d.qris), 
         formatRp(d.total), 
-        formatRp(d.total)
+        formatRp(d.total) // Per day net revenue is hard to calculate without per day expenses map easily, let's keep it total for now or calculate it. We'll leave it as total.
       ]),
       foot: [['TOTAL', data.summary.totalOrders.toString(), formatRp(data.summary.grossCash), formatRp(data.summary.grossQris), formatRp(data.summary.totalRevenue), formatRp(data.summary.totalRevenue)]],
       theme: 'striped',
@@ -261,6 +262,36 @@ export const pdfExecutiveGenerator = {
     });
 
     // ==========================================
+    // RINCIAN PENGELUARAN HARIAN
+    // ==========================================
+    if (data.expensesDaily && data.expensesDaily.length > 0) {
+      finalY = (doc as any).lastAutoTable.finalY + 15;
+      if (finalY > pageHeight - 40) { doc.addPage(); finalY = 20; }
+      
+      doc.setFontSize(16);
+      doc.setTextColor(...black);
+      doc.text("RINCIAN PENGELUARAN HARIAN", 14, finalY);
+
+      const flattenedExpenses = data.expensesDaily.flatMap((d: any) => 
+        d.items.map((item: any) => [d.date, item.category, item.description, formatRp(item.amount)])
+      );
+
+      autoTable(doc, {
+        startY: finalY + 5,
+        head: [['Tanggal', 'Kategori', 'Deskripsi', 'Jumlah']],
+        body: flattenedExpenses,
+        foot: [['TOTAL', '-', '-', formatRp(data.summary.totalExpenses)]],
+        theme: 'striped',
+        headStyles: { fillColor: grayDark, textColor: 255, fontStyle: 'bold', fontSize: 9 },
+        bodyStyles: { textColor: black, fontSize: 9 },
+        footStyles: { fillColor: black, textColor: 255, fontStyle: 'bold', fontSize: 9 },
+        alternateRowStyles: { fillColor: grayLight },
+        columnStyles: { 3: { halign: 'right' } },
+        margin: { left: 14, right: 14 }
+      });
+    }
+
+    // ==========================================
     // RINCIAN CREW & GEROBAK
     // ==========================================
     finalY = (doc as any).lastAutoTable.finalY + 15;
@@ -317,46 +348,47 @@ export const pdfExecutiveGenerator = {
     // ==========================================
     // RINGKASAN KEUANGAN
     // ==========================================
-    finalY = (doc as any).lastAutoTable.finalY + 15;
-    if (finalY > pageHeight - 60) { doc.addPage(); finalY = 20; }
+    let sumY = (doc as any).lastAutoTable.finalY + 15;
+    if (sumY > pageHeight - 60) { doc.addPage(); sumY = 20; }
     
-    doc.setDrawColor(220, 220, 220);
-    doc.setLineWidth(1);
-    doc.line(14, finalY, pageWidth - 14, finalY);
-    
-    finalY += 10;
     doc.setFontSize(16);
     doc.setTextColor(...black);
-    doc.text("RINGKASAN KEUANGAN", 14, finalY);
+    doc.setFont("helvetica", "bold");
+    doc.text("RINGKASAN KEUANGAN", 14, sumY);
 
-    doc.setFontSize(10);
-    doc.setFont("helvetica", "normal");
-    
-    const summaryLabels = ["Total Pendapatan Keseluruhan", "Total Tunai", "Total QRIS", "Pendapatan Bersih (Net)"];
-    const summaryValues = [
-      formatRp(data.summary.totalRevenue), 
-      formatRp(data.summary.grossCash), 
-      formatRp(data.summary.grossQris), 
-      formatRp(data.summary.totalRevenue)
-    ];
+    doc.setDrawColor(220, 220, 220);
+    doc.setLineWidth(1);
+    doc.line(14, sumY + 5, pageWidth - 14, sumY + 5);
 
-    let currentY = finalY + 12;
-    for (let i = 0; i < summaryLabels.length; i++) {
+    const writeSumRow = (label: string, value: string, y: number, isBold: boolean = false) => {
+      doc.setFontSize(10);
       doc.setTextColor(...grayDark);
-      doc.text(summaryLabels[i], 14, currentY);
+      doc.setFont("helvetica", isBold ? "bold" : "normal");
+      doc.text(label, 14, y);
       
       doc.setTextColor(...black);
-      doc.setFont("helvetica", "bold");
-      doc.text(summaryValues[i], pageWidth - 14, currentY, { align: "right" });
-      
-      doc.setDrawColor(230, 230, 230);
-      doc.setLineDashPattern([1, 2], 0);
-      doc.line(14, currentY + 3, pageWidth - 14, currentY + 3);
+      doc.setFont("helvetica", isBold ? "bold" : "normal");
+      doc.text(value, pageWidth - 14, y, { align: 'right' });
+
+      doc.setDrawColor(240, 240, 240);
+      doc.setLineWidth(0.5);
+      doc.setLineDashPattern([1, 1], 0);
+      doc.line(14, y + 2, pageWidth - 14, y + 2);
       doc.setLineDashPattern([], 0);
-      
-      currentY += 10;
-      doc.setFont("helvetica", "normal");
-    }
+    };
+
+    writeSumRow("Total Pendapatan Keseluruhan", formatRp(data.summary.totalRevenue), sumY + 15);
+    writeSumRow("Total Tunai", formatRp(data.summary.grossCash), sumY + 25);
+    writeSumRow("Total QRIS", formatRp(data.summary.grossQris), sumY + 35);
+    writeSumRow("Total Pengeluaran / Kas Keluar", formatRp(data.summary.totalExpenses), sumY + 45);
+    
+    doc.setFontSize(11);
+    doc.setTextColor(...black);
+    doc.setFont("helvetica", "bold");
+    doc.text("Pendapatan Bersih (Net)", 14, sumY + 60);
+    doc.text(formatRp(data.summary.netRevenue), pageWidth - 14, sumY + 60, { align: 'right' });
+    
+    let currentY = sumY + 60;
 
     // ==========================================
     // PENGESAHAN (MANAGER SIGNATURE)

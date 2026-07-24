@@ -1,5 +1,5 @@
 import React from "react";
-import { Search, Download, Calendar, Filter, RefreshCw } from "lucide-react";
+import { Search, Download, Calendar, Filter, RefreshCw, Loader2 } from "lucide-react";
 import { motion } from "motion/react";
 
 export type PeriodType = "today" | "7days" | "month" | "year";
@@ -9,9 +9,10 @@ interface FinancialToolbarProps {
   setPeriod: (period: PeriodType) => void;
   onRefresh: () => void;
   onExport: () => void;
+  isPending?: boolean;
 }
 
-export const FinancialToolbar: React.FC<FinancialToolbarProps> = ({ period, setPeriod, onRefresh, onExport }) => {
+export const FinancialToolbar: React.FC<FinancialToolbarProps> = ({ period, setPeriod, onRefresh, onExport, isPending }) => {
   const periods: { value: PeriodType; label: string }[] = [
     { value: "today", label: "Hari Ini" },
     { value: "7days", label: "7 Hari" },
@@ -45,7 +46,8 @@ export const FinancialToolbar: React.FC<FinancialToolbarProps> = ({ period, setP
             <button
               key={p.value}
               onClick={() => setPeriod(p.value)}
-              className="relative px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-xl transition-all whitespace-nowrap"
+              disabled={isPending}
+              className={`relative px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-xl transition-all whitespace-nowrap flex items-center justify-center gap-2 ${isPending ? 'opacity-80 cursor-not-allowed' : ''}`}
             >
               {period === p.value && (
                 <motion.div
@@ -54,8 +56,9 @@ export const FinancialToolbar: React.FC<FinancialToolbarProps> = ({ period, setP
                   transition={{ type: "spring", stiffness: 400, damping: 30 }}
                 />
               )}
-              <span className={`relative z-10 ${period === p.value ? "text-white" : "text-white/40 hover:text-white/70"}`}>
-                {p.label}
+              <span className={`relative z-10 flex items-center gap-1.5 ${period === p.value ? "text-white" : "text-white/40 hover:text-white/70"}`}>
+                {isPending && period === p.value && <Loader2 className="w-3 h-3 animate-spin" />}
+                {isPending && period === p.value ? "Memuat..." : p.label}
               </span>
             </button>
           ))}

@@ -225,6 +225,17 @@ export async function catatPenjualanProduk(
     }]);
   }
 
+  // Explicitly update qty_terjual in shift_inventory for real-time monitoring UI
+  const { data: invRow, error: invErr } = await supabase.from("shift_inventory").select("*").eq("shift_id", shiftId).eq("product_id", productId).single();
+  if (invErr) {
+    console.error("Error fetching shift_inventory:", invErr);
+  }
+  if (invRow) {
+    const currentSold = Number(invRow.qty_terjual || 0);
+    const { error: updErr } = await supabase.from("shift_inventory").update({ qty_terjual: currentSold + qty_terjual }).eq("id", invRow.id);
+    if (updErr) console.error("Error updating qty_terjual:", updErr);
+  }
+
   await supabase.rpc("rpc_sell_from_shift", {
     p_shift_id: shiftId,
     p_product_id: productId,

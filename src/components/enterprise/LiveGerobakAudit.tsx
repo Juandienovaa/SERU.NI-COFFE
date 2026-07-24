@@ -61,8 +61,9 @@ export const LiveGerobakAudit: React.FC<LiveGerobakAuditProps> = ({
       setLoading(true);
       const { data: activeShifts, error } = await supabase
         .from("shifts")
-        .select("id, outlet_id, crew_name, status, created_at, omset_tunai, omset_qris")
-        .in("status", ["OPEN", "open", "aktif", "Aktif"]);
+        .select("id, outlet_id, crew_name, status, created_at, omset_tunai, omset_qris, inventory_data")
+        .in("status", ["OPEN", "open", "aktif", "Aktif"])
+        .neq("outlet_id", "CENTRAL_CASHIER");
 
       if (error) throw error;
 
@@ -83,14 +84,23 @@ export const LiveGerobakAudit: React.FC<LiveGerobakAuditProps> = ({
         const myInventory = shiftInventoryData.filter(i => i.shift_id === shift.id);
         
         const stockDetails: GerobakStockDetail[] = myInventory.map((item: any) => {
-          const qtyAwal = Number(item.qty_awal || 0);
-          const qtyAllocated = Number(item.qty_allocated || 0);
+          // Check json data from shift as fallback for missing columns
+          const jsonData = (shift.inventory_data || []).find((j: any) => Number(j.product_id) === Number(item.product_id)) || {};
+          
+          const qtyAwal = Math.max(Number(item.qty_awal || 0), Number(jsonData.stok_awal || 0));
+          const qtyAllocated = Math.max(Number(item.qty_allocated || 0), Number(jsonData.added_stock || 0));
           const qtyAdjustment = Number(item.qty_adjustment || 0);
-          const qtyReturn = Number(item.qty_return || item.qty_retur || 0);
-          const qtyTerjual = Number(item.qty_terjual || 0);
+          const qtyReturn = Number(item.qty_return ?? item.qty_retur ?? 0);
+          
+          // Use Math.max to guarantee we don't accidentally prefer a 0 from shift_inventory 
+          // over a valid sold count from the JSON fallback data
+          const qtyTerjual = Math.max(Number(item.qty_terjual || 0), Number(jsonData.terjual || 0));
+          
           const qtyRusak = Number(item.qty_rusak || 0);
           const computedSisa = qtyAwal + qtyAllocated + qtyAdjustment + qtyReturn - qtyTerjual - qtyRusak;
-          const sisaStok = computedSisa;
+          
+          // Also prefer JSON sisa if it exists, otherwise fallback to computed
+          const sisaStok = jsonData.sisa !== undefined ? Number(jsonData.sisa) : computedSisa;
 
           totalCupTerjual += qtyTerjual;
           const prod = (productData || []).find((p: any) => String(p.product_id) === String(item.product_id));
